@@ -1,7 +1,6 @@
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Animated } from 'react-native';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
 import { applicationsAPI, jobsAPI } from '../../services/api';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
@@ -13,12 +12,8 @@ const MyApplicationsScreen = () => {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [recentlyUpdated, setRecentlyUpdated] = useState([]);
-  const router = useRouter();
   const { user } = useAuth();
   const { socket, isConnected } = useSocketIO();
-  // Create refs for animated values
-  const animatedValues = useRef({});
   
   // Check if the current user is a boat owner
   const isBoatOwner = user?.user_type === 'boat_owner';
@@ -56,14 +51,11 @@ const MyApplicationsScreen = () => {
         // For fishermen: Get applications they've submitted
         newApps = await applicationsAPI.getMyApplications();
       }
+        // Log the loaded applications for debugging
+      console.log(`Loaded ${newApps.length} applications for ${isBoatOwner ? 'boat owner' : 'fisherman'}`);
       
-      // Initialize animated values for newly fetched applications
-      if (newApps && newApps.length > 0) {
-        newApps.forEach(app => {
-          if (app && app.id && !animatedValues.current[app.id]) {
-            animatedValues.current[app.id] = new Animated.Value(0);
-          }
-        });
+      if (newApps.length > 0) {
+        console.log('First application:', newApps[0]);
       }
       
       // Update state with fetched applications
@@ -78,73 +70,57 @@ const MyApplicationsScreen = () => {
   // Setup socket listeners for real-time application updates
   useEffect(() => {
     // Only setup listeners if socket is connected
-    if (socket && isConnected) {
-      const handleNotification = (notification) => {
+    if (socket && isConnected) {      const handleNotification = (notification) => {
         console.log('Received notification:', notification);
+        console.log('User type:', isBoatOwner ? 'Boat Owner' : 'Fisherman');
         
-        if (notification.type === 'application_status_update' && !isBoatOwner) {
-          // This notification is for fishermen when their application status changes
-          // Extract information from the message to identify the job
-          const appId = notification.application_id;
-          
-          // Show an alert with the status update
-          const statusMatch = notification.message.match(/updated to ([a-z]+)/i);
-          const status = statusMatch ? statusMatch[1].toLowerCase() : null;
-          
-          if (status) {
-            let title = 'Application Updated';
-            let message = notification.message;
+        // Handle notifications based on user type and notification type
+        if (isBoatOwner) {
+          // BOAT OWNER NOTIFICATIONS
+          if (notification.type === 'new_application') {
+            // Notification for boat owners when they receive new applications
+            console.log('Boat owner received new application notification');
             
-            if (status === 'accepted') {
-              title = '🎉 Application Accepted!';
-            } else if (status === 'rejected') {
-              title = 'Application Rejected';
-            } else if (status === 'shortlisted') {
-              title = '👍 Application Shortlisted!';
-            } else if (status === 'viewed') {
-              title = 'Application Viewed';
+            Alert.alert(
+              'New Application Received', 
+              notification.message || 'You have received a new job application.'
+            );
+            
+            // Refresh the applications list
+            loadApplications();
+          }
+        } else {
+          // FISHERMAN NOTIFICATIONS
+          if (notification.type === 'application_status_update') {
+            // Notification for fishermen when their application status changes
+            console.log('Fisherman received application status update');
+            
+            console.log('Application ID:', notification.application_id);
+            
+            // Show an alert with the status update
+            const statusMatch = notification.message.match(/updated to ([a-z]+)/i);
+            const status = statusMatch ? statusMatch[1].toLowerCase() : null;
+            
+            if (status) {
+              let title = 'Application Updated';
+              let message = notification.message;
+              
+              if (status === 'accepted') {
+                title = '🎉 Application Accepted!';
+              } else if (status === 'rejected') {
+                title = 'Application Rejected';
+              } else if (status === 'shortlisted') {
+                title = '👍 Application Shortlisted!';
+              } else if (status === 'viewed') {
+                title = 'Application Viewed';
+              }
+              
+              Alert.alert(title, message);
             }
             
-            Alert.alert(title, message);
+            // Refresh applications after showing the alert
+            loadApplications();
           }
-          
-          // Refresh applications after showing the alert
-          loadApplications();
-          
-          // Track this application as recently updated for animation
-          if (appId) {
-            setRecentlyUpdated(prev => [...prev, appId]);
-            
-            // Create animation for this item if it exists
-            if (animatedValues.current[appId]) {
-              Animated.sequence([
-                Animated.timing(animatedValues.current[appId], {
-                  toValue: 1,
-                  duration: 300,
-                  useNativeDriver: true,
-                }),
-                Animated.delay(3000), // Increased delay to 3 seconds to make the highlight more noticeable
-                Animated.timing(animatedValues.current[appId], {
-                  toValue: 0,
-                  duration: 500,
-                  useNativeDriver: true,
-                })
-              ]).start(() => {
-                // Remove from recently updated after animation completes
-                setRecentlyUpdated(prev => prev.filter(id => id !== appId));
-              });
-            }
-          }
-        } else if (notification.type === 'new_application' && isBoatOwner) {
-          // This notification is for boat owners when they receive new applications
-          // Show notification first
-          Alert.alert(
-            'New Application Received', 
-            notification.message || 'You have received a new job application.'
-          );
-          
-          // Then refresh the applications list
-          loadApplications();
         }
       };
       
@@ -165,79 +141,9 @@ const MyApplicationsScreen = () => {
     setRefreshing(true);
     loadApplications();
   };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending':
-        return '#ffc107'; // Yellow
-      case 'viewed':
-        return '#2196f3'; // Blue
-      case 'shortlisted':
-        return '#9c27b0'; // Purple
-      case 'accepted':
-        return '#4caf50'; // Green
-      case 'rejected':
-        return '#f44336'; // Red
-      default:
-        return '#757575'; // Gray
-    }
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
-  const renderApplicationItem = ({ item }) => {
-    // Get animated style for this item
-    const animatedStyle = {
-      backgroundColor: animatedValues.current[item.id]?.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['#ffffff', '#e3f2fd']
-      }) || '#ffffff'
-    };
-    
-    const isUpdated = recentlyUpdated.includes(item.id);
-    
-    return (
-      <Animated.View style={[styles.applicationCard, animatedStyle]}>
-        <TouchableOpacity
-          onPress={() => router.push(`/job-details/${item.job_id}`)}
-        >
-          <View style={styles.applicationHeader}>
-            <Text style={styles.jobTitle}>{item.job_title}</Text>
-            <View style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(item.status) }
-            ]}>
-              <Text style={styles.statusText}>{item.status.charAt(0).toUpperCase() + item.status.slice(1)}</Text>
-              {isUpdated && <Ionicons name="checkmark-circle" size={12} color="white" style={styles.updatedIcon} />}
-            </View>
-          </View>
-          
-          {item.location && (
-            <View style={styles.infoRow}>
-              <Ionicons name="location-outline" size={16} color="#666" />
-              <Text style={styles.infoText}>{item.location}</Text>
-            </View>
-          )}
-          
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={16} color="#666" />
-            <Text style={styles.infoText}>Applied: {formatDate(item.application_date)}</Text>
-          </View>
-          
-          {item.cover_letter && (
-            <View style={styles.coverLetterContainer}>
-              <Text style={styles.coverLetterLabel}>Cover Letter:</Text>
-              <Text style={styles.coverLetter} numberOfLines={2}>
-                {item.cover_letter}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };  return (
+  // No unused functions here
+  
+  return (
     <SafeScreenWrapper>
       <HeaderBox title={isBoatOwner ? "Received Applications" : "My Applications"} />
       
@@ -245,14 +151,14 @@ const MyApplicationsScreen = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#44DBE9" />
         </View>
-      ) : (
-        <FlatList
+      ) : (        <FlatList
           data={applications}
           keyExtractor={(item) => item.id ? item.id.toString() : Math.random().toString()}
           renderItem={({ item }) => (
-            isBoatOwner ? 
-              <ApplicationItem application={item} isOwner={true} /> : 
-              renderApplicationItem({ item })
+            <ApplicationItem 
+              application={item} 
+              isOwner={isBoatOwner}
+            />
           )}
           contentContainerStyle={styles.listContainer}
           refreshControl={

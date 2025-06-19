@@ -39,9 +39,10 @@ export const AuthProvider = ({ children }) => {
               
               // Also update the stored user data for future app launches
               await AsyncStorage.setItem('user', JSON.stringify(profileData));
-              
-              // Navigate based on user type
-              if (userData.user_type === 'boat_owner') {
+                // Navigate based on user type
+              if (userData.user_type === 'admin') {
+                router.replace('/admin'); // Admin users go to admin dashboard
+              } else if (userData.user_type === 'boat_owner') {
                 router.replace('/(tabs)'); // Boat owners see the main app with their jobs
               } else {
                 router.replace('/(tabs)'); // Fishermen also see the main app (job listings)
@@ -59,9 +60,10 @@ export const AuthProvider = ({ children }) => {
               setToken(null);
               setUser(null);
               // No need to redirect as the user will be shown the login screen
-            } else {
-              // For other errors, continue with stored data and still navigate
-              if (userData.user_type === 'boat_owner') {
+            } else {              // For other errors, continue with stored data and still navigate
+              if (userData.user_type === 'admin') {
+                router.replace('/admin'); // Admin users go to admin dashboard
+              } else if (userData.user_type === 'boat_owner') {
                 router.replace('/(tabs)'); // Boat owners see the main app with their jobs
               } else {
                 router.replace('/(tabs)'); // Fishermen also see the main app (job listings)
@@ -79,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     loadStorageData();
     // No need for event listeners in React Native - auth errors are handled by our API interceptors
   }, [router]);
-
   // Sign in
   const signIn = async (email, password) => {
     try {
@@ -94,66 +95,91 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Password is required');
       }
       
-      const response = await authAPI.signIn(email, password);
-      
-      // Improved response validation
-      if (!response) {
-        throw new Error('No response received from the server');
-      }
-      
-      if (!response.token) {
-        throw new Error('Authentication token not provided');
-      }
-      
-      if (!response.user) {
-        throw new Error('User information not provided');
-      }
-      
-      // Validate user object has the required fields
-      if (!response.user.user_type) {
-        console.warn('User type not specified in the response, defaulting to fisherman');
-        response.user.user_type = 'fisherman';
-      }
-      
-      // First, save the basic auth response
-      setUser(response.user);
-      setToken(response.token);
-      
-      // Save token in storage
-      await AsyncStorage.setItem('token', response.token);
-      
-      // Try to fetch the full profile now that we're authenticated
       try {
-        const profileData = await userAPI.getProfile();
+        // Try to authenticate with the real backend
+        console.log('Attempting authentication with backend');
+        const response = await authAPI.signIn(email, password);
         
-        if (profileData) {
-          // Update with full profile data
-          setUser(profileData);
-          await AsyncStorage.setItem('user', JSON.stringify(profileData));
-        } else {
-          // Fall back to basic user data if profile fetch returns nothing
-          await AsyncStorage.setItem('user', JSON.stringify(response.user));
+        // Improved response validation
+        if (!response) {
+          throw new Error('No response received from the server');
         }
-      } catch (profileError) {
-        console.error('Failed to fetch profile after login:', profileError);
-        // Still save the basic user data if profile fetch fails
+        
+        if (!response.token) {
+          throw new Error('Authentication token not provided');
+        }
+        
+        if (!response.user) {
+          throw new Error('User information not provided');
+        }
+        
+        // Validate user object has the required fields
+        if (!response.user.user_type) {
+          console.warn('User type not specified in the response, defaulting to fisherman');
+          response.user.user_type = 'fisherman';
+        }
+        
+        // First, save the basic auth response
+        setUser(response.user);
+        setToken(response.token);
+        
+        // Save token in storage
+        await AsyncStorage.setItem('token', response.token);
         await AsyncStorage.setItem('user', JSON.stringify(response.user));
+        
+        // Try to fetch the full profile now that we're authenticated
+        try {
+          const profileData = await userAPI.getProfile();
+          
+          if (profileData) {
+            // Update with full profile data
+            setUser(profileData);
+            await AsyncStorage.setItem('user', JSON.stringify(profileData));
+          }
+        } catch (profileError) {
+          console.warn('Failed to fetch profile after login:', profileError);
+          // Already saved the basic user data above
+        }
+          // Navigate based on user type
+        const userType = response.user.user_type;
+        console.log('Navigating based on user type:', userType);
+        
+        if (userType === 'admin') {
+          router.replace('/admin'); // Admin users go to admin dashboard
+        } else {
+          router.replace('/(tabs)'); // Other users go to main app
+        }
+        
+        return response;
+      } catch (apiError) {
+        // Handle network error or backend down scenario
+        console.error('API error during sign in:', apiError);
+          // No mock data - just handle the error properly
+        console.error('Sign-in failed due to network or authentication issue:', apiError.message);
+        // The error will be thrown below and handled in the catch block
+          // Throw the original error
+        throw apiError?.response?.data || apiError;
       }
-      
-      // Navigate based on user type - safely check user_type
-      const userType = response.user.user_type;
-      console.log('Navigating based on user type:', userType);
-      
-      if (userType === 'boat_owner') {
-        router.replace('/(tabs)'); // Boat owners see the main app with their jobs
-      } else {
-        router.replace('/(tabs)'); // Fishermen also see the main app (job listings)
-      }
-      
-      return response;
     } catch (error) {
       console.error('Sign in error:', error);
-      throw error;
+      
+      // Format the error message for user display
+      let userMessage = 'Failed to sign in. Please check your credentials.';
+      
+      if (error?.message) {
+        userMessage = error.message;
+      } else if (typeof error === 'string') {
+        userMessage = error;
+      } else if (error?.originalError?.message) {
+        userMessage = error.originalError.message;
+      } else if (error?.originalError) {
+        userMessage = 'Network error. Please check your connection.';
+      }
+      
+      throw {
+        message: userMessage,
+        originalError: error
+      };
     } finally {
       setLoading(false);
     }

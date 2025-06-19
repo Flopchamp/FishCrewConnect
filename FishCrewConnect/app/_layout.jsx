@@ -22,7 +22,7 @@ function SocketManager() {
         setReconnectAttempts(prev => prev + 1);
       }, delay);
     } else if (error) {
-      console.log('Max reconnection attempts reached. Using mock data.');
+      console.log('Max reconnection attempts reached. Socket connection failed.');
     }
     
     if (isConnected) {

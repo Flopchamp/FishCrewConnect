@@ -34,16 +34,18 @@ const ApplicationItem = ({ application, isOwner = false }) => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };  // Handle view application details
   const handleViewDetails = () => {
+    // Log the application data and user role for debugging
+    console.log('Application data:', application);
+    console.log('Is owner (boat owner):', isOwner);
+    
     if (isOwner) {
-      // For individual application view, navigate to the specific application
-      if (application.application_id) {
-        router.push(`/job-applications/${application.job_id}?application=${application.application_id}`);
-      } else {
-        // Fallback to the job applications page
-        router.push(`/job-applications/${application.job_id}`);
-      }
+      // For boat owners: navigate to see details of all applications for this job
+      const jobId = application.job_id;
+      console.log(`Boat owner navigating to job applications, job ID: ${jobId}`);
+      router.push(`/job-applications/${jobId}`);
     } else {
-      // Applicants view job details
+      // For fishermen: view the job details they applied to
+      console.log(`Fisherman viewing job details, job ID: ${application.job_id}`);
       router.push(`/job-details/${application.job_id}`);
     }
   };
