@@ -1,31 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import DefaultProfileImage from '../../components/DefaultProfileImage';
 import { messagesAPI } from '../../services/messageService';
 
-const ConversationsScreen = () => {  const router = useRouter();
+const ConversationsScreen = () => {
+  const router = useRouter();
+  const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
+    // Debug auth state
+  useEffect(() => {
+    console.log('Conversations tab - auth state check:', 
+      user ? `User ID: ${user.id}, Name: ${user.name}` : 'No user data available');
+  }, [user]);
   
   useEffect(() => {
     const loadConversations = async () => {
       try {
         setLoading(true);
+        
+        // Check for auth before loading
+        if (!user || !user.id) {
+          console.log('User not authenticated, skipping conversation load');
+          setConversations([]);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Loading conversations for user ID:', user.id);
         const data = await messagesAPI.getConversations();
-        setConversations(data);
+        
+        // Filter out any conversations with yourself (if they exist)
+        const filteredConversations = user?.id 
+          ? data.filter(conversation => conversation.recipientId !== user.id)
+          : data;
+          
+        console.log(`Loaded ${data.length} conversations, showing ${filteredConversations.length} after filtering`);
+        setConversations(filteredConversations);
       } catch (error) {
         console.error('Error loading conversations:', error);
+        // Handle specific auth errors
+        if (error.message?.includes('sign in') || error.response?.status === 401) {
+          Alert.alert(
+            "Authentication Required", 
+            "Please sign in to view your messages",
+            [{ text: "OK" }]
+          );
+        }
       } finally {
         setLoading(false);
       }
     };
     
     loadConversations();
-  }, []);
+  }, [user]);
   
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
@@ -41,14 +74,36 @@ const ConversationsScreen = () => {  const router = useRouter();
       return date.toLocaleDateString();
     }
   };
-  
   const navigateToChat = (conversation) => {
+    // Ensure recipientId is a number before navigation
+    const recipientId = parseInt(conversation.recipientId, 10);
+    
+    // Log the navigation parameters
+    console.log('Navigating to chat with parameters:', {
+      recipientId,
+      recipientName: conversation.recipientName,
+      recipientProfileImage: conversation.recipientProfileImage
+    });
+    
+    if (isNaN(recipientId)) {
+      console.error('Invalid recipientId:', conversation.recipientId);
+      Alert.alert('Error', 'Invalid conversation data. Please try again.');
+      return;
+    }
+    
+    // Prevent navigating to chat with yourself
+    if (user && user.id === recipientId) {
+      console.error('Cannot message yourself');
+      Alert.alert('Invalid Action', 'You cannot send messages to yourself.');
+      return;
+    }
+    
     router.push({
       pathname: '/messaging',
       params: {
-        recipientId: conversation.recipientId,
-        recipientName: conversation.recipientName,
-        recipientProfileImage: conversation.recipientProfileImage
+        recipientId: recipientId, // Send as number
+        recipientName: conversation.recipientName || 'Unknown',
+        recipientProfileImage: conversation.recipientProfileImage || null
       }
     });
   };
@@ -96,9 +151,8 @@ const ConversationsScreen = () => {  const router = useRouter();
       <HeaderBox title="Messages" />
       
       <FlatList
-        data={conversations}
-        renderItem={renderConversationItem}
-        keyExtractor={(item) => item.recipientId.toString()}
+        data={conversations}        renderItem={renderConversationItem}
+        keyExtractor={(item) => `conv-${item.recipientId}-${new Date(item.timestamp).getTime()}`}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
