@@ -15,12 +15,11 @@ const AuthOptions = () => {
 
   const handleCreateAccount = () => {
     router.push('/(auth)/sign-up/signUp'); // Navigate to your existing sign-up screen
-  };
-  const handleBoatOwnerSignUp = () => {
-    // Navigate to sign-up with boat_owner role parameter
+  };  const handleAdminSignUp = () => {
+    // Navigate to sign-up with admin role parameter
     router.push({
       pathname: '/(auth)/sign-up/signUp',
-      params: { userRole: 'boat_owner' }, // Using consistent naming that matches backend
+      params: { userRole: 'admin' }, // Changed from boat_owner to admin
     });
   };
 
@@ -46,38 +45,12 @@ const AuthOptions = () => {
       
       <TouchableOpacity style={styles.createAccountButton} onPress={handleCreateAccount}>
         <Text style={styles.createAccountButtonText}>Create Account</Text>
-      </TouchableOpacity>      
-        <View style={styles.boatOwnerContainer}>
-        <Text style={styles.boatOwnerText}>Are you a boat owner? </Text>
-        <TouchableOpacity onPress={handleBoatOwnerSignUp}>
+      </TouchableOpacity>        <View style={styles.boatOwnerContainer}>
+        <Text style={styles.boatOwnerText}>Are you an admin? </Text>
+        <TouchableOpacity onPress={handleAdminSignUp}>
           <Text style={styles.boatOwnerLink}>Sign up here</Text>
         </TouchableOpacity>
-      </View>{__DEV__ && (
-        <View style={styles.devBox}>
-          <Text style={styles.devText}>Development Credentials:</Text>
-          <TouchableOpacity onPress={() => router.push({
-            pathname: '/(auth)/sign-in/sign-in',
-            params: { devEmail: 'fisherman@test.com', devPassword: 'password123' }
-          })}>
-            <Text style={styles.devCredentials}>Fisherman Account:</Text>
-            <Text style={styles.devCredentials}>Email: fisherman@test.com</Text>
-            <Text style={styles.devCredentials}>Password: password123</Text>
-            <Text style={styles.devAction}>Tap to auto-fill fisherman sign in</Text>
-          </TouchableOpacity>
-          
-          <View style={styles.devDivider} />
-          
-          <TouchableOpacity onPress={() => router.push({
-            pathname: '/(auth)/sign-in/sign-in',
-            params: { devEmail: 'boat@test.com', devPassword: 'password123' }
-          })}>
-            <Text style={styles.devCredentials}>Boat Owner Account:</Text>
-            <Text style={styles.devCredentials}>Email: boat@test.com</Text>
-            <Text style={styles.devCredentials}>Password: password123</Text>
-            <Text style={styles.devAction}>Tap to auto-fill boat owner sign in</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      </View>
     </View>
   );
 };
@@ -166,34 +139,5 @@ const styles = StyleSheet.create({
   },  signInLink: {
     fontSize: 14,
     color: '#44DBE9',
-  },
-  devBox: {
-    marginTop: 10,
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    width: '100%',
-  },
-  devText: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#888',
-  },
-  devCredentials: {
-    color: '#666',
-    fontFamily: 'monospace',
-  },
-  devAction: {
-    color: '#44DBE9',
-    marginTop: 5,
-    fontStyle: 'italic',
-    fontWeight: 'bold',
-  },
-  devDivider: {
-    height: 1,
-    backgroundColor: '#ddd',
-    marginVertical: 10,
   },
 });

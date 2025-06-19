@@ -10,8 +10,7 @@ const SignIn = () => {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { signIn } = useAuth();
-  
-  // Use any development credentials that might be passed via params
+    // Use any development credentials that might be passed via params
   useEffect(() => {
     if (params.devEmail) {
       setEmail(params.devEmail.toString());
@@ -19,7 +18,7 @@ const SignIn = () => {
     if (params.devPassword) {
       setPassword(params.devPassword.toString());
     }
-  }, [params.devEmail, params.devPassword]);  const handleSignIn = async () => {
+  }, [params.devEmail, params.devPassword]);const handleSignIn = async () => {
     // Enhanced validation
     if (!email || typeof email !== 'string' || email.trim() === '') {
       Alert.alert('Error', 'Please enter a valid email address.');
@@ -39,35 +38,41 @@ const SignIn = () => {
       const safeEmail = typeof email === 'string' ? email.trim() : '';
       const safePassword = typeof password === 'string' ? password : '';
       
+      // Try to sign in using AuthContext
       const response = await signIn(safeEmail, safePassword);
       
-      // Safely access response properties with defensive checks
-      if (response && response.user) {
+      // Check if we got a response with user data
+      if (response && response.user) {        // Sign-in was successful
         console.log('Sign-in successful:', response.user.user_type || 'unknown user type');
       } else {
-        console.log('Sign-in successful but user data is incomplete');
+        console.log('Sign-in response received but user data is incomplete');
       }
       
-      // If for some reason the AuthContext doesn't navigate, do it here as a fallback
-      setTimeout(() => {
-        // Safely check the router path
-        if (router && router.pathname && 
-            typeof router.pathname === 'string' && 
-            router.pathname.includes('sign-in')) {
-          router.replace('/(tabs)');
-        }
-      }, 500);
     } catch (error) {
       console.error('Sign-in error:', error);
       let errorMessage = 'Failed to sign in. Please check your credentials.';
       
-      if (error && error.message) {
+      // Extract the most useful error message for the user
+      if (error?.message) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
+      } else if (error?.originalError?.message) {
+        errorMessage = `${error.originalError.message} (${error.originalError.code || 'Unknown code'})`;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
       }
-      
-      Alert.alert('Sign-in Error', errorMessage);
+        // Show a user-friendly error message
+      Alert.alert(
+        'Sign-in Error',
+        errorMessage,
+        [
+          {
+            text: 'Try Again',
+            style: 'default'
+          }
+        ]
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -119,19 +124,6 @@ const SignIn = () => {
       </TouchableOpacity>      <TouchableOpacity onPress={() => router.push('/(auth)/sign-up/signUp')}>
         <Text style={styles.signUpText}>Don&#39;t have an account? Sign Up</Text>
       </TouchableOpacity>
-      
-      {__DEV__ && (
-        <View style={styles.devBox}>
-          <Text style={styles.devText}>Development Credentials:</Text>
-          <TouchableOpacity onPress={() => {
-            setEmail('test@example.com');
-            setPassword('password123');
-          }}>
-            <Text style={styles.devCredentials}>Email: test@example.com</Text>
-            <Text style={styles.devCredentials}>Password: password123</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 };
@@ -194,22 +186,5 @@ const styles = StyleSheet.create({
     color: '#44DBE9',
     textAlign: 'center',
     fontSize: 16,
-  },
-  devBox: {
-    marginTop: 30,
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  devText: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#888',
-  },
-  devCredentials: {
-    color: '#666',
-    fontFamily: 'monospace',
   },
 });

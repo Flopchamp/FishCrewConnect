@@ -66,15 +66,19 @@ const ProfileScreen = () => {
   const handleEditProfile = () => {
     router.push('/edit-profile');
   };
-  
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      router.replace('/');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      Alert.alert('Logout Failed', 'Unable to log out. Please try again.');
-    }
+    const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: () => signOut()
+        }
+      ]
+    );
   };
   if (loading && !refreshing) {
     return (
@@ -145,13 +149,12 @@ const ProfileScreen = () => {
             <Text style={styles.emptyText}>No reviews yet</Text>
           </View>
         )}
-        
-        <TouchableOpacity 
+          <TouchableOpacity 
           style={styles.logoutButton}
           onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={20} color="#e53935" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeScreenWrapper>

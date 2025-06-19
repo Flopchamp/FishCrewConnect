@@ -13,9 +13,8 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // Determine if the sign up is specifically for a boat owner
-  const isBoatOwnerSignUp = params.userRole === 'boat_owner';
+  const [isSubmitting, setIsSubmitting] = useState(false);  // Determine if the sign up is specifically for an admin
+  const isAdminSignUp = params.userRole === 'admin';
 
   useEffect(() => {
     if (params.userRole && typeof params.userRole === 'string') {
@@ -68,7 +67,7 @@ const SignUp = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{isBoatOwnerSignUp ? 'Boat Owner Registration' : 'Create Account'}</Text>
+      <Text style={styles.title}>{isAdminSignUp ? 'Admin Registration' : 'Create Account'}</Text>
 
       <TextInput
         style={styles.input}
@@ -99,7 +98,7 @@ const SignUp = () => {
         onChangeText={setConfirmPassword}
         secureTextEntry
       />      {/* Conditionally render role selection section */}
-      {!isBoatOwnerSignUp && (
+      {!isAdminSignUp && (
         <View>
           <Text style={styles.roleTitle}>Select your role:</Text>
           <View style={styles.roleContainer}>
