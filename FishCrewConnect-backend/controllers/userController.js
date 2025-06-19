@@ -6,11 +6,9 @@ const db = require('../config/db');
 exports.getUserProfile = async (req, res) => {
     try {
         // req.user is set by the authMiddleware
-        const userId = req.user.id;
-
-        // Fetch basic user details from the database, excluding the password_hash
+        const userId = req.user.id;        // Fetch basic user details from the database, excluding the password_hash
         const [users] = await db.query(
-            'SELECT user_id, user_type, email, name, contact_number, organization_name, created_at, updated_at, firebase_uid FROM users WHERE user_id = ?',
+            'SELECT user_id, user_type, email, name, contact_number, organization_name, created_at, updated_at FROM users WHERE user_id = ?',
             [userId]
         );
 
@@ -91,10 +89,6 @@ exports.getUserProfile = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
-// @desc    Update current user profile
-// @route   PUT /api/users/me
-// @access  Private
-// ... (getUserProfile function) ...
 
 exports.updateUserProfile = async (req, res) => {
     const { 

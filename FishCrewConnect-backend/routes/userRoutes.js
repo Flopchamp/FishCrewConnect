@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const reviewController = require('../controllers/reviewController');
 const authMiddleware = require('../middleware/authMiddleware');
 
 // @route   GET /api/users/me
@@ -18,6 +19,11 @@ router.get('/contacts', authMiddleware, userController.getAllContacts);
 // @desc    Get user's average rating from reviews
 // @access  Public
 router.get('/:id/rating', userController.getUserRating);
+
+// @route   GET /api/users/:userId/reviews
+// @desc    Get all reviews for a specific user
+// @access  Public
+router.get('/:userId/reviews', reviewController.getReviewsForUser);
 
 // Diagnostic route to test authMiddleware
 router.get('/test-auth', authMiddleware, (req, res) => {
