@@ -1,9 +1,10 @@
 import { io } from 'socket.io-client';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '../config/api';
 
-// Socket.IO server URL (same as the API URL but without the path)
-const SOCKET_URL = 'http://192.168.197.80:3001'; // Updated to match backend port
+// Socket.IO server URL (using the same URL as the API)
+const SOCKET_URL = API_URL;
 
 // Socket.IO connection options - trying polling first, then websocket
 const socketOptions = {

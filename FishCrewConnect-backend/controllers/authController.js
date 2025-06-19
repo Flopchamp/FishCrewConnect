@@ -10,10 +10,8 @@ exports.signup = async (req, res) => {
     // Basic validation
     if (!name || !email || !password || !user_type) {
         return res.status(400).json({ message: 'Please provide name, email, password, and user type.' });
-    }
-
-    // Validate user_type against allowed enum values
-    const allowedUserTypes = ['boat_owner', 'fisherman', 'crew'];
+    }    // Validate user_type against allowed enum values
+    const allowedUserTypes = ['boat_owner', 'fisherman', 'admin'];
     if (!allowedUserTypes.includes(user_type)) {
         return res.status(400).json({ message: 'Invalid user type specified.' });
     }

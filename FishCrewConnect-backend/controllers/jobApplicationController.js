@@ -8,11 +8,9 @@ exports.applyForJob = async (req, res) => {
     const userId = req.user.id; // Assuming user ID is available from authMiddleware
     
     // Make cover_letter optional with default empty string
-    const cover_letter = req.body && req.body.cover_letter ? req.body.cover_letter : '';
-
-    // Check if user is a crew member (or fisherman, adjust as needed)
-    if (req.user.user_type !== 'crew' && req.user.user_type !== 'fisherman') {
-        return res.status(403).json({ message: 'Only crew members or fishermen can apply for jobs' });
+    const cover_letter = req.body && req.body.cover_letter ? req.body.cover_letter : '';    // Check if user is a fisherman
+    if (req.user.user_type !== 'fisherman') {
+        return res.status(403).json({ message: 'Only fishermen can apply for jobs' });
     }
 
     try {
@@ -92,18 +90,13 @@ exports.getApplicationsForJob = async (req, res) => {
         if (jobRows[0].user_id !== ownerId) {
             console.log(`Authorization error: Job belongs to user ${jobRows[0].user_id}, not requester ${ownerId}`);
             return res.status(403).json({ message: 'You are not authorized to view applications for this job' });
-        }// Get applications with user details including profile information
+        }        // Get applications with user details without requiring profiles table
         const [applications] = await db.query(
             `SELECT ja.*, 
                     u.name as applicant_name, 
-                    u.email as applicant_email,
-                    p.experience_years,
-                    p.skills,
-                    p.bio,
-                    p.profile_image_url
+                    u.email as applicant_email
             FROM job_applications ja 
             JOIN users u ON ja.user_id = u.user_id 
-            LEFT JOIN profiles p ON u.user_id = p.user_id
             WHERE ja.job_id = ? 
             ORDER BY ja.application_date DESC`,
             [jobId]
