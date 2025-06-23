@@ -11,19 +11,30 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const { socket, isConnected } = useSocketIO();
-
   // Load notifications
   const loadNotifications = async () => {
     try {
       setLoading(true);
       const data = await notificationsAPI.getNotifications();
-      setNotifications(data);
       
-      // Count unread notifications
-      const unread = data.filter(notification => !notification.is_read).length;
-      setUnreadCount(unread);
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setNotifications(data);
+        
+        // Count unread notifications
+        const unread = data.filter(notification => !notification.is_read).length;
+        setUnreadCount(unread);
+      } else {
+        // Handle case where data is not an array
+        console.warn('Notifications data is not an array:', data);
+        setNotifications([]);
+        setUnreadCount(0);
+      }
     } catch (error) {
       console.error('Failed to load notifications:', error);
+      // Set empty array when backend is not available
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }

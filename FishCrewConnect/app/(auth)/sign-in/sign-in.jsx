@@ -91,7 +91,7 @@ const SignIn = () => {
         style={styles.logo}
         resizeMode="contain"
       />      <Text style={styles.title}>Welcome Back!</Text>
-      <Text style={styles.subtitle}>Sign in as a Boat Owner or Fisherman</Text>
+      <Text style={styles.subtitle}>Already part of the crew? Sign in and get fishing</Text>
 
       <TextInput
         style={styles.input}

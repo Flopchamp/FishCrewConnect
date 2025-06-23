@@ -8,13 +8,16 @@ const SOCKET_URL = API_URL;
 
 // Socket.IO connection options - trying polling first, then websocket
 const socketOptions = {
-  reconnectionAttempts: 10,
+  reconnectionAttempts: 15, // Increased attempts for network changes
   reconnectionDelay: 2000,
-  timeout: 15000,
+  timeout: 20000, // Increased timeout
   transports: ['polling', 'websocket'], // Try polling first, then websocket
   autoConnect: false, // We'll connect manually
   forceNew: true,
   path: '/socket.io/', // Default Socket.IO path
+  // Additional options for better network handling
+  upgrade: true,
+  rememberUpgrade: true,
 };
 
 let socket = null;
@@ -47,10 +50,9 @@ export const useSocketIO = () => {
       socket.on('disconnect', (reason) => {
         console.log('Socket.IO disconnected! Reason:', reason);
         setIsConnected(false);
-      });
-
-      socket.on('connect_error', (err) => {
+      });      socket.on('connect_error', (err) => {
         console.error('Socket.IO connection error:', err.message);
+        console.error('Socket.IO URL attempted:', SOCKET_URL);
         setError(err.message);
       });
       

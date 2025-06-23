@@ -69,6 +69,8 @@ const SignUp = () => {
     <View style={styles.container}>
       <Text style={styles.title}>{isAdminSignUp ? 'Admin Registration' : 'Create Account'}</Text>
 
+      <Text style={styles.subtitle}>New here? Connect with trusted boat owners and experienced fishermen</Text>
+
       <TextInput
         style={styles.input}
         placeholder="Full Name"
@@ -149,6 +151,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#74E0EB',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
     marginBottom: 30,
   },

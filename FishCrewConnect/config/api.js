@@ -7,7 +7,7 @@
 
 // Option 1: For Expo Go on physical device or emulator using your computer's IP address
 // Replace with your computer's actual local IP address (use ipconfig on Windows or ifconfig on Mac/Linux)
-export const API_URL = 'http://192.168.155.80:3001'; // Updated to use your actual IP address
+export const API_URL = 'http://192.168.196.80:3001'; // Updated to use your current IP address
 
 // Option 2: For web browser or using localhost
 // export const API_URL = 'http://localhost:3001';

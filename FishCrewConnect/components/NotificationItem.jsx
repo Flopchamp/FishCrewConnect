@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
  */
 const NotificationItem = ({ notification, onMarkAsRead }) => {
   const router = useRouter();
-    // Get icon based on notification type
+  // Get icon based on notification type
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'new_application':
@@ -30,8 +30,11 @@ const NotificationItem = ({ notification, onMarkAsRead }) => {
           }
         }
         return 'checkmark-circle-outline';
+      case 'new_message':
+        return 'chatbubble-outline';
       case 'message':
         return 'chatbubble-outline';
+      case 'new_review':
       case 'review':
         return 'star-outline';
       default:

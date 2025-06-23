@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
-import { adminAPI } from '../../services/api';
+import api from '../../services/api';
 
 const AdminDashboard = () => {
   const router = useRouter();
@@ -28,15 +28,13 @@ const AdminDashboard = () => {
       setError(null);
       console.log('Loading admin dashboard statistics...');
       
-      const data = await adminAPI.getDashboardStats();
-      console.log('Received admin stats:', data);
-      
-      // Update stats with real data from API
+      const data = await api.admin.getDashboardStats();
+      console.log('Received admin stats:', data);      // Update stats with real data from API
       setStats({
-        totalUsers: data.overview.totalUsers,
-        totalJobs: data.overview.totalJobs,
-        totalApplications: data.overview.totalApplications,
-        activeConversations: data.overview.activeConversations
+        totalUsers: data.totals.users,
+        totalJobs: data.totals.jobs,
+        totalApplications: data.totals.applications,
+        activeConversations: data.active?.conversations || data.totals?.conversations || 0
       });
       
     } catch (error) {
