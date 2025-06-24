@@ -42,10 +42,9 @@ exports.applyForJob = async (req, res) => {
         const [jobOwnerResult] = await db.query("SELECT user_id, job_title FROM jobs WHERE job_id = ?", [jobId]); // Also fetch job_title
         if (jobOwnerResult.length > 0) {
             const jobOwnerId = jobOwnerResult[0].user_id;
-            const jobTitle = jobOwnerResult[0].job_title;
-            const notificationMessage = `You have a new application for your job \"${jobTitle}\".`;
+            const jobTitle = jobOwnerResult[0].job_title;            const notificationMessage = `You have a new application for your job \"${jobTitle}\".`;
             const notificationType = 'new_application';
-            const notificationLink = `/jobs/${jobId}/applications`;
+            const notificationLink = `/job-applications/${jobId}`;
 
             const [notifResult] = await db.query(
                 "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
@@ -90,16 +89,25 @@ exports.getApplicationsForJob = async (req, res) => {
         if (jobRows[0].user_id !== ownerId) {
             console.log(`Authorization error: Job belongs to user ${jobRows[0].user_id}, not requester ${ownerId}`);
             return res.status(403).json({ message: 'You are not authorized to view applications for this job' });
-        }        // Get applications with user details without requiring profiles table
+        }        // Get applications with user details and review status
         const [applications] = await db.query(
             `SELECT ja.*, 
                     u.name as applicant_name, 
-                    u.email as applicant_email
+                    u.email as applicant_email,
+                    j.status as job_status,
+                    CASE 
+                        WHEN r.id IS NOT NULL THEN 1 
+                        ELSE 0 
+                    END as has_reviewed
             FROM job_applications ja 
             JOIN users u ON ja.user_id = u.user_id 
+            JOIN jobs j ON ja.job_id = j.job_id
+            LEFT JOIN reviews r ON r.job_id = j.job_id 
+                                 AND r.reviewer_id = ? 
+                                 AND r.reviewed_user_id = ja.user_id
             WHERE ja.job_id = ? 
             ORDER BY ja.application_date DESC`,
-            [jobId]
+            [ownerId, jobId]
         );
         res.status(200).json(applications);
     } catch (error) {
@@ -114,10 +122,26 @@ exports.getApplicationsForJob = async (req, res) => {
 exports.getMyApplications = async (req, res) => {
     const userId = req.user.id;
 
-    try {
-        const [applications] = await db.query(
-            "SELECT ja.*, j.job_title, j.location FROM job_applications ja JOIN jobs j ON ja.job_id = j.job_id WHERE ja.user_id = ? ORDER BY ja.application_date DESC",
-            [userId]
+    try {        const [applications] = await db.query(
+            `SELECT ja.*, 
+                    j.job_title, 
+                    j.location, 
+                    j.status as job_status,
+                    j.user_id as job_owner_id,
+                    u.name as owner_name,
+                    CASE 
+                        WHEN r.id IS NOT NULL THEN 1 
+                        ELSE 0 
+                    END as has_reviewed
+             FROM job_applications ja 
+             JOIN jobs j ON ja.job_id = j.job_id 
+             LEFT JOIN users u ON j.user_id = u.user_id
+             LEFT JOIN reviews r ON r.job_id = j.job_id 
+                                  AND r.reviewer_id = ? 
+                                  AND r.reviewed_user_id = j.user_id
+             WHERE ja.user_id = ? 
+             ORDER BY ja.application_date DESC`,
+            [userId, userId]
         );
         res.status(200).json(applications);
     } catch (error) {
@@ -173,9 +197,8 @@ exports.updateApplicationStatus = async (req, res) => {
             notificationMessage = `Congratulations! Your application for the job \"${jobTitle}\" has been accepted.`;
         } else if (status === 'rejected') {
             notificationMessage = `We regret to inform you that your application for the job \"${jobTitle}\" has been rejected.`;
-        }
-        const notificationType = 'application_status_update';
-        const notificationLink = `/my-applications`;
+        }        const notificationType = 'application_status_update';
+        const notificationLink = `/(tabs)/my-applications`;
         
         const [notifResult] = await db.query(
             "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",

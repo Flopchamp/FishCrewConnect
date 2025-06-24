@@ -56,10 +56,9 @@ exports.createJob = async (req, res) => {
             
             // Create notifications for each fisherman
             if (fishermen.length > 0) {
-                const notificationPromises = fishermen.map(fisherman => {
-                    const notification = {
+                const notificationPromises = fishermen.map(fisherman => {                    const notification = {
                         user_id: fisherman.user_id,
-                        type: 'new_job',
+                        type: 'new_message',
                         message: `New job posted: "${job_title}" in ${location || 'N/A'}`,
                         link: `/job-details/${jobId}`,
                         is_read: false
@@ -72,10 +71,9 @@ exports.createJob = async (req, res) => {
                 await Promise.all(notificationPromises);
                 
                 // Emit Socket.IO event for real-time notifications if Socket.IO is available
-                if (req.io) {
-                    fishermen.forEach(fisherman => {
+                if (req.io) {                    fishermen.forEach(fisherman => {
                         req.io.to(fisherman.user_id.toString()).emit('new_notification', {
-                            type: 'new_job',
+                            type: 'new_message',
                             message: `New job posted: "${job_title}" in ${location || 'N/A'}`,
                             link: `/job-details/${jobId}`
                         });
@@ -143,10 +141,10 @@ exports.getJobById = async (req, res) => {
 // @route   PUT /api/jobs/:jobId
 // @access  Private (Job Owner only)
 exports.updateJob = async (req, res) => {
-    const { jobId } = req.params;
-    const { 
+    const { jobId } = req.params;    const { 
         job_title,
         description,
+        // requirements, // Temporarily commented out until database column is added
         location,
         payment_details,
         application_deadline,
@@ -177,10 +175,10 @@ exports.updateJob = async (req, res) => {
 
         // Construct the SET clause for the SQL query dynamically
         let setClauses = [];
-        let queryParams = [];
-
-        if (job_title !== undefined) { setClauses.push('job_title = ?'); queryParams.push(job_title); }
+        let queryParams = [];        if (job_title !== undefined) { setClauses.push('job_title = ?'); queryParams.push(job_title); }
         if (description !== undefined) { setClauses.push('description = ?'); queryParams.push(description); }
+        // TODO: Re-enable when requirements column is added to database
+        // if (requirements !== undefined) { setClauses.push('requirements = ?'); queryParams.push(requirements); }
         if (location !== undefined) { setClauses.push('location = ?'); queryParams.push(location); }
         if (payment_details !== undefined) { setClauses.push('payment_details = ?'); queryParams.push(payment_details); }
         if (application_deadline !== undefined) { setClauses.push('application_deadline = ?'); queryParams.push(application_deadline); }
@@ -198,13 +196,10 @@ exports.updateJob = async (req, res) => {
         await db.query(sql, queryParams);
 
         // Fetch the updated job to return
-        const [updatedJobRows] = await db.query('SELECT * FROM jobs WHERE job_id = ?', [jobId]);
-
-        // If status was updated, send notifications to relevant applicants
+        const [updatedJobRows] = await db.query('SELECT * FROM jobs WHERE job_id = ?', [jobId]);        // If status was updated, send notifications to relevant applicants
         if (status && updatedJobRows.length > 0) {
-            const updatedJob = updatedJobRows[0];
-            let notificationMessage = '';
-            let applicantNotificationType = 'job_status_update';
+            const updatedJob = updatedJobRows[0];            let notificationMessage = '';
+            let applicantNotificationType = 'application_update';
             let applicantsToNotify = [];
 
             // Fetch job title for notification messages
@@ -217,9 +212,8 @@ exports.updateJob = async (req, res) => {
                     "SELECT user_id FROM job_applications WHERE job_id = ? AND status IN ('pending', 'shortlisted', 'accepted')", 
                     [jobId]
                 );
-                applicantsToNotify = relevantApplicants.map(app => app.user_id);
-            } else if (status === 'completed') {
-                notificationMessage = `The job "${jobTitle}" (ID: ${jobId}) has been marked as completed.`;
+                applicantsToNotify = relevantApplicants.map(app => app.user_id);            } else if (status === 'completed') {
+                notificationMessage = `The job "${jobTitle}" (ID: ${jobId}) has been marked as completed. You can now submit a review!`;
                 // Notify the accepted applicant(s)
                 const [acceptedApplicants] = await db.query(
                     "SELECT user_id FROM job_applications WHERE job_id = ? AND status = 'accepted'", 
@@ -241,7 +235,7 @@ exports.updateJob = async (req, res) => {
                     // Avoid notifying the job owner if they are also in the list (edge case, shouldn't happen for applicants)
                     if (applicantId === userId) continue;
                     
-                    const notificationLink = `/my-applications`; // or a link to the specific job/application
+                    const notificationLink = `/(tabs)/my-applications`; // or a link to the specific job/application
                     const [notifResult] = await db.query(
                         "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
                         [applicantId, applicantNotificationType, notificationMessage, notificationLink]
