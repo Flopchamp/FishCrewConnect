@@ -1,16 +1,32 @@
-# Welcome to your Expo app 👋
+# FishCrewConnect App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This is a mobile application built with Expo/React Native for connecting fishermen with boat owners.
+
+## Important: Backend Server Required
+
+This app has been updated to use only real backend data - there is no more mock data usage. You must have the backend server running for the app to work properly.
 
 ## Get started
 
-1. Install dependencies
+1. Start the backend server first
+
+   ```bash
+   cd ../FishCrewConnect-backend
+   npm install
+   npm start
+   ```
+
+2. Configure API connection (if needed)
+
+   Edit `config/api.js` to set the correct server address for your environment.
+
+3. Install dependencies for the frontend
 
    ```bash
    npm install
    ```
 
-2. Start the app
+4. Start the app
 
    ```bash
    npx expo start
@@ -33,7 +49,14 @@ When you're ready, run:
 npm run reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+This command will move the starter code toconst socketOptions = {
+  reconnectionAttempts: 15,
+  reconnectionDelay: 2000,
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  autoConnect: false,
+  forceNew: true
+}; the **app-example** directory and create a blank **app** directory where you can start developing.
 
 ## Learn more
 
