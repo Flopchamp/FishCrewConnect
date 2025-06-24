@@ -3,14 +3,12 @@ import { StyleSheet, Text, View, TextInput, Alert, TouchableOpacity } from 'reac
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { reviewsAPI } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import SafeScreenWrapper from '../components/SafeScreenWrapper';
 import HeaderBox from '../components/HeaderBox';
 import CustomButton from '../components/CustomButton';
 
 const SubmitReviewScreen = () => {
   const router = useRouter();
-  const { user } = useAuth();
   const params = useLocalSearchParams();
   const { userId, jobId, recipientName, jobTitle } = params;
   
@@ -26,14 +24,11 @@ const SubmitReviewScreen = () => {
     
     try {
       setLoading(true);
-      
-      const reviewData = {
-        reviewer_id: user.id,
-        recipient_id: userId,
+        const reviewData = {
         job_id: jobId,
+        reviewed_user_id: userId,
         rating,
-        comment,
-        created_at: new Date().toISOString()
+        comment
       };
       
       await reviewsAPI.createReview(reviewData);

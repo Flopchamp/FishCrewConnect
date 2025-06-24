@@ -25,7 +25,7 @@ const MessagingScreen = () => {
   // Early verification of auth state to handle fast render before auth is fully loaded
   const hasValidAuth = user && user.id && !isNaN(parseInt(user.id, 10));
   
-  console.log('Messaging screen auth check:', hasValidAuth ? 'Valid auth' : 'Missing or invalid auth');
+  
     // Get messaging functionality with proper safety checks for user ID
   const { setupMessageListeners, sendMessage } = useMessaging(
     hasValidAuth && user?.id ? user.id : undefined
@@ -119,7 +119,7 @@ const MessagingScreen = () => {
           setLoading(false);
           return;
         }
-          console.log(`Current user ID: ${currentUserId}, Recipient ID: ${recipientId}`);
+          
         
         // Extra validation before API call
         if (currentUserId === undefined || recipientId === undefined) {
@@ -134,7 +134,7 @@ const MessagingScreen = () => {
           // Ensure we're dealing with an array and log more details for debugging
           if (Array.isArray(messageHistory)) {
             setMessages(messageHistory);
-            console.log("Message history loaded successfully:", messageHistory.length, "messages");
+            
             
             // Only scroll if there are messages
             if (messageHistory.length > 0) {
@@ -175,7 +175,7 @@ const MessagingScreen = () => {
         
         // Handle self-messaging error specially
         if (isSelfMessagingError) {
-          console.log("Detected self-messaging error from backend:", error);
+          
           if (isMounted && !hasNavigatedAway) {
             hasNavigatedAway = true;
             Alert.alert(
@@ -336,7 +336,7 @@ const MessagingScreen = () => {
     ? messages.reduce((groups, message) => {
         // Skip invalid messages
         if (!message || !message.timestamp) {
-          console.log("Skipping message without timestamp:", message);
+          
           return groups;
         }
         
@@ -359,9 +359,9 @@ const MessagingScreen = () => {
     messages: groupedMessages[date]
   }));
   
-  console.log(`Created ${messageGroups.length} message groups`);
+  
   if (messageGroups.length === 0 && !loading) {
-    console.log("No message groups created even though loading is complete");
+    
   }
 
   const renderMessage = ({ item }) => {
@@ -435,7 +435,7 @@ const MessagingScreen = () => {
                 <Text style={styles.emptyText}>No messages yet. Start the conversation!</Text>                <TouchableOpacity 
                   style={styles.retryButton}
                   onPress={() => {
-                    console.log("Manually retrying message loading for recipient:", recipientId);
+                    
                     setLoading(true);
                     
                     // Prevent self-messaging retries which will always fail
@@ -472,7 +472,7 @@ const MessagingScreen = () => {
                       setLoading(false);
                       return;
                     }
-                      console.log(`Retrying message load with user ID: ${currentUserId}, recipient ID: ${recipientId}`);
+                      
                     // Extra validation before retrying
                     if (!currentUserId || isNaN(parseInt(currentUserId, 10)) || 
                         !recipientId || isNaN(parseInt(recipientId, 10))) {
@@ -485,12 +485,12 @@ const MessagingScreen = () => {
                     }
                     messagesAPI.getMessages(currentUserId, recipientId)
                       .then(data => {
-                        console.log(`Retry got ${data ? data.length : 'no'} messages`);
+                        
                         setMessages(Array.isArray(data) ? data : []);
                         if (Array.isArray(data) && data.length > 0) {
                           Alert.alert("Success", `Loaded ${data.length} messages`);
                         } else {
-                          console.log("No messages found on retry");
+                          
                         }
                         setLoading(false);
                       })
@@ -538,7 +538,7 @@ const MessagingScreen = () => {
                                   setLoading(false);
                                   return;
                                 }
-                                  console.log(`Second retry with user ID: ${currentUserId}, recipient ID: ${recipientId}`);
+                                  
                                 // Extra validation before second retry
                                 if (!currentUserId || isNaN(parseInt(currentUserId, 10)) || 
                                     !recipientId || isNaN(parseInt(recipientId, 10))) {
