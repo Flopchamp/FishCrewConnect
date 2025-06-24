@@ -3,15 +3,13 @@ import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { applicationsAPI, jobsAPI } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import DefaultProfileImage from '../../components/DefaultProfileImage';
 
 const JobApplicationsScreen = () => {
   const { id: jobId } = useLocalSearchParams();
-  const router = useRouter();  // We don't need user variable currently but keeping the hook for future use
-  const { user: currentUser } = useAuth();
+  const router = useRouter();
   
   const [applications, setApplications] = useState([]);
   const [job, setJob] = useState(null);
@@ -101,6 +99,28 @@ const JobApplicationsScreen = () => {
       }
     });
   };
+  
+  // Handle reviewing an applicant
+  const handleReviewApplicant = (item) => {
+    router.push({
+      pathname: '/submit-review',
+      params: {
+        userId: item.user_id,
+        jobId: jobId,
+        recipientName: item.applicant_name,
+        jobTitle: job?.job_title || 'Job',
+        reviewed_user_id: item.user_id
+      }
+    });
+  };
+
+  // Check if review is possible (job completed and applicant was accepted)
+  const canReviewApplicant = (item) => {
+    return job?.status === 'completed' && 
+           item.status === 'accepted' && 
+           !item.has_reviewed; // Assuming we track if review has been given
+  };
+
   // Get status color based on status value
   const getStatusColor = (status) => {
     switch (status) {
@@ -211,10 +231,29 @@ const JobApplicationsScreen = () => {
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </Text>
                 )}
-              </TouchableOpacity>
-            ))}
+              </TouchableOpacity>            ))}
           </View>
+          
+          {/* Review Button - Show only if job is completed and applicant was accepted */}
+          {canReviewApplicant(item) && (
+            <TouchableOpacity
+              style={styles.reviewButton}
+              onPress={() => handleReviewApplicant(item)}
+            >
+              <Ionicons name="star-outline" size={20} color="#FF9800" />
+              <Text style={styles.reviewButtonText}>Review Fisherman</Text>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {canReviewApplicant(item) && (
+          <TouchableOpacity 
+            style={styles.reviewButton}
+            onPress={() => handleReviewApplicant(item)}
+          >
+            <Text style={styles.reviewButtonText}>Review Applicant</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -598,6 +637,23 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     color: '#333',
+  },  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: '#FFF3E0',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+  },
+  reviewButtonText: {
+    color: '#FF9800',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
 });
 

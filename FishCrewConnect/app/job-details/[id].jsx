@@ -84,16 +84,11 @@ const JobDetailsScreen = () => {
       loadJobDetails();
     }
   }, [loadJobDetails, jobId]); // Including jobId in dependencies even though it's already in loadJobDetails
-  
-  // Handle pull-to-refresh
+    // Handle pull-to-refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadJobDetails();
   }, [loadJobDetails]);
-  // Show cover letter modal
-  const showCoverLetterInput = () => {
-    setShowCoverLetterModal(true);
-  };
   
   // Handle job application
   const handleApply = async () => {
@@ -271,16 +266,12 @@ const JobDetailsScreen = () => {
               </View>
             </View>
           </View>
-          
-          {job.payment_details && (
+            {job.payment_details && (
             <View style={styles.paymentRow}>
               <Ionicons name="cash-outline" size={18} color="#4CAF50" />
               <Text style={styles.paymentText}>{job.payment_details}</Text>
             </View>
-          )}
-        </View>
-        
-        {/* Job Description */}
+          )}        </View>          {/* Job Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.description}>
@@ -307,6 +298,27 @@ const JobDetailsScreen = () => {
             <Text style={styles.noReviewsText}>No reviews yet</Text>
           )}
         </View>
+
+        {/* Job Owner Actions - Moved to bottom after reviews */}
+        {isJobOwner && (
+          <View style={styles.ownerActionsSection}>
+            <View style={styles.ownerButtonRow}>
+              <CustomButton
+                title="Edit Job"
+                onPress={() => router.push(`/edit-job/${jobId}`)}
+                icon="create-outline"
+                style={[styles.ownerButton, styles.editJobButton]}
+                textStyle={styles.editJobButtonText}
+              />
+              <CustomButton
+                title="View Applications"
+                onPress={() => router.push(`/job-applications/${jobId}`)}
+                icon="people-outline"
+                style={[styles.ownerButton, styles.viewApplicationsButton]}
+              />
+            </View>
+          </View>
+        )}
         
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -368,24 +380,12 @@ const JobDetailsScreen = () => {
           </View>
         </View>
       </Modal>
-      
-      {hasApplied && (
+        {hasApplied && (
         <View style={styles.bottomBar}>
           <View style={styles.appliedBadge}>
             <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
             <Text style={styles.appliedText}>You have already applied</Text>
           </View>
-        </View>
-      )}
-      
-      {isJobOwner && (
-        <View style={styles.bottomBar}>
-          <CustomButton
-            title="View Applications"
-            onPress={() => router.push(`/job-applications/${jobId}`)}
-            fullWidth
-            icon="people-outline"
-          />
         </View>
       )}
     </SafeScreenWrapper>
@@ -609,12 +609,46 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: '#4CAF50',
     fontWeight: '500',
-  },
-  bottomSpacer: {
+  },  bottomSpacer: {
     height: 80,
   },
   editButton: {
     padding: 8,
+  },
+  ownerActionsSection: {
+    marginBottom: 24,
+    paddingHorizontal: 0,
+  },
+  ownerButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  ownerButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  editJobButton: {
+    backgroundColor: '#e8f5f6',
+    borderWidth: 1,
+    borderColor: '#44DBE9',
+  },
+  editJobButtonText: {
+    color: '#44DBE9',
+    fontWeight: '600',
+  },  viewApplicationsButton: {
+    backgroundColor: '#0077B6',
+  },
+  employerReviewButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#FFB800',
+    marginTop: 8,
+  },
+  employerReviewButtonText: {
+    color: '#FFB800',
+    fontWeight: '600',
   },
 });
 
