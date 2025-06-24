@@ -172,26 +172,48 @@ const UserManagement = () => {
 
   const renderFilterChips = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-      {userTypes.map((type) => (
-        <TouchableOpacity
-          key={type.value}
-          style={[
-            styles.filterChip,
-            selectedUserType === type.value && styles.filterChipActive
-          ]}
-          onPress={() => {
-            setSelectedUserType(type.value);
-            setCurrentPage(1);
-          }}
-        >
-          <Text style={[
-            styles.filterChipText,
-            selectedUserType === type.value && styles.filterChipTextActive
-          ]}>
-            {type.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {userTypes.map((type) => {
+        // Calculate user count for each type
+        const typeCount = type.value === 'all' 
+          ? users.length 
+          : users.filter(user => user.user_type === type.value).length;
+        
+        return (
+          <TouchableOpacity
+            key={type.value}
+            style={[
+              styles.filterChip,
+              selectedUserType === type.value && styles.filterChipActive
+            ]}
+            onPress={() => {
+              setSelectedUserType(type.value);
+              setCurrentPage(1);
+            }}
+          >
+            <View style={styles.filterChipContent}>
+              <Text style={[
+                styles.filterChipText,
+                selectedUserType === type.value && styles.filterChipTextActive
+              ]}>
+                {type.label}
+              </Text>
+              {typeCount > 0 && (
+                <View style={[
+                  styles.filterChipBadge,
+                  selectedUserType === type.value && styles.filterChipBadgeActive
+                ]}>
+                  <Text style={[
+                    styles.filterChipBadgeText,
+                    selectedUserType === type.value && styles.filterChipBadgeTextActive
+                  ]}>
+                    {typeCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 
@@ -461,28 +483,6 @@ const UserManagement = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    margin: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
     fontSize: 16,
     color: '#333',
   },

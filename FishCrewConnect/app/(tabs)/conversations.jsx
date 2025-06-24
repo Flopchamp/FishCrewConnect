@@ -26,7 +26,7 @@ const ConversationsScreen = () => {
         
         // Check for auth before loading
         if (!user || !user.id) {
-          console.log('User not authenticated, skipping conversation load');
+          
           setConversations([]);
           setLoading(false);
           return;

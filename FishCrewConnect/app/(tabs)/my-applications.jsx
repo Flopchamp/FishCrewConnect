@@ -88,8 +88,7 @@ const MyApplicationsScreen = () => {
             
             // Refresh the applications list
             loadApplications();
-          }
-        } else {
+          }        } else {
           // FISHERMAN NOTIFICATIONS
           if (notification.type === 'application_status_update') {
             // Notification for fishermen when their application status changes
@@ -119,6 +118,26 @@ const MyApplicationsScreen = () => {
             }
             
             // Refresh applications after showing the alert
+            loadApplications();
+          } else if (notification.type === 'application_update') {
+            // Handle job completion notifications
+            console.log('Fisherman received application update notification');
+            
+            const isCompletedNotification = notification.message.includes('marked as completed');
+            
+            if (isCompletedNotification) {
+              Alert.alert(
+                '🎉 Job Completed!',
+                notification.message,
+                [
+                  { text: 'OK', onPress: () => loadApplications() }
+                ]
+              );
+            } else {
+              Alert.alert('Job Update', notification.message);
+            }
+            
+            // Refresh applications to show updated status and review buttons
             loadApplications();
           }
         }
