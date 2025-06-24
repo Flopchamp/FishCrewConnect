@@ -100,11 +100,9 @@ exports.createReview = async (req, res) => {
         const jobTitle = jobTitleResult.length > 0 ? jobTitleResult[0].job_title : "a job";
         
         const [reviewerUser] = await db.query("SELECT name FROM users WHERE user_id = ?", [reviewer_id]);
-        const reviewerName = reviewerUser.length > 0 ? reviewerUser[0].name : "Someone";
-
-        const notificationMessage = `${reviewerName} left you a review for the job \"${jobTitle}\".`;
+        const reviewerName = reviewerUser.length > 0 ? reviewerUser[0].name : "Someone";        const notificationMessage = `${reviewerName} left you a review for the job \"${jobTitle}\".`;
         const notificationType = 'new_review';
-        const notificationLink = `/profile/${reviewed_user_id}/reviews`;
+        const notificationLink = `/(tabs)/profile`;
 
         const [notifResult] = await db.query(
             "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",

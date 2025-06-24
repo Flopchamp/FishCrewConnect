@@ -83,6 +83,10 @@ exports.getUserProfile = async (req, res) => {
             // Continue without rating data if there's an error
         }
 
+        // Ensure consistent field naming for frontend compatibility
+        // Add 'id' field to match login response structure
+        userData.id = userData.user_id;
+
         res.json(userData);
     } catch (error) {
         console.error('Error fetching user profile:', error.message);
@@ -340,5 +344,76 @@ exports.getAllContacts = async (req, res) => {
     } catch (error) {
         console.error('Error fetching contacts:', error);
         res.status(500).json({ message: 'Server error while fetching contacts.' });
+    }
+};
+
+// @desc    Get user by ID (public profile view)
+// @route   GET /api/users/:id
+// @access  Public
+exports.getUserById = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // Fetch basic user details from the database, excluding sensitive information
+        const [users] = await db.query(
+            'SELECT user_id, user_type, name, organization_name, created_at FROM users WHERE user_id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Get the basic user data
+        const userData = users[0];
+
+        // Try to fetch public profile data from user_profiles table
+        const [profiles] = await db.query(
+            'SELECT profile_image, location, years_experience, bio, specialties, skills, rating FROM user_profiles WHERE user_id = ?',
+            [userId]
+        );
+
+        // If profile exists, merge the data
+        if (profiles.length > 0) {
+            const profileData = profiles[0];
+            
+            // Parse JSON fields if they exist
+            if (profileData.specialties) {
+                try {
+                    profileData.specialties = JSON.parse(profileData.specialties);
+                } catch (e) {
+                    profileData.specialties = [];
+                }
+            } else {
+                profileData.specialties = [];
+            }
+            
+            if (profileData.skills) {
+                try {
+                    profileData.skills = JSON.parse(profileData.skills);
+                } catch (e) {
+                    profileData.skills = [];
+                }
+            } else {
+                profileData.skills = [];
+            }
+            
+            // Merge user data with profile data
+            Object.assign(userData, profileData);
+        } else {
+            // If no profile exists, set default values
+            userData.profile_image = null;
+            userData.location = null;
+            userData.years_experience = null;
+            userData.bio = null;
+            userData.specialties = [];
+            userData.skills = [];
+            userData.rating = null;
+        }
+
+        res.json(userData);
+    } catch (error) {
+        console.error('Error getting user by ID:', error);
+        res.status(500).json({ message: 'Server error while fetching user profile.' });
     }
 };
