@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const messageController = require('../controllers/messageController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { checkMessagingEnabled } = require('../middleware/settingsMiddleware');
 
-// Apply auth middleware to all routes
+// Apply auth middleware and messaging check to all routes
 router.use(authMiddleware);
+router.use(checkMessagingEnabled);
 
 // @route   GET /api/messages/conversations
 // @desc    Get all conversations for the current user
@@ -15,7 +17,7 @@ router.get('/conversations', messageController.getConversations);
 router.get('/:userId', messageController.getMessages);
 
 // @route   POST /api/messages
-// @desc    Send a message to another user
+// @desc    Send a new message
 router.post('/', messageController.sendMessage);
 
 // @route   PUT /api/messages/read

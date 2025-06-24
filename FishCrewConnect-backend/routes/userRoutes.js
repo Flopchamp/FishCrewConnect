@@ -25,6 +25,11 @@ router.get('/:id/rating', userController.getUserRating);
 // @access  Public
 router.get('/:userId/reviews', reviewController.getReviewsForUser);
 
+// @route   GET /api/users/:id
+// @desc    Get user profile by ID (public view)
+// @access  Public
+router.get('/:id', userController.getUserById);
+
 // Diagnostic route to test authMiddleware
 router.get('/test-auth', authMiddleware, (req, res) => {
   console.log('Accessed /api/users/test-auth. req.user:', req.user);

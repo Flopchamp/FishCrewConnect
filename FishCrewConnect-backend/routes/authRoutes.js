@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { checkUserRegistrationEnabled } = require('../middleware/settingsMiddleware');
 
 // @route   POST api/auth/signup
 // @desc    Register a new user
-// @access  Public
-router.post('/signup', authController.signup);
+// @access  Public (but subject to registration settings)
+router.post('/signup', checkUserRegistrationEnabled, authController.signup);
 
 // @route   POST api/auth/signin
 // @desc    Authenticate user & get token (Sign In)
