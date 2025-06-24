@@ -52,7 +52,7 @@ const ReviewItem = ({ review }) => {
           <Text style={styles.jobTitle}>{review.job_title}</Text>
         </View>
         
-        <Text style={styles.date}>{formatDate(review.created_at)}</Text>
+        <Text style={styles.date}>{formatDate(review.review_date || review.created_at)}</Text>
       </View>
       
       {renderRating(review.rating)}

@@ -61,15 +61,24 @@ const NotificationItem = ({ notification, onMarkAsRead }) => {
       return notifDate.toLocaleDateString();
     }
   };
-
   // Handle notification press - navigate to the linked page
   const handlePress = () => {
+    console.log('Notification pressed:', notification);
+    console.log('Navigation link:', notification.link);
+    
     if (!notification.is_read && onMarkAsRead) {
       onMarkAsRead(notification.id);
     }
     
     if (notification.link) {
-      router.push(notification.link);
+      try {
+        router.push(notification.link);
+      } catch (error) {
+        console.error('Navigation error:', error);
+        console.error('Failed to navigate to:', notification.link);
+      }
+    } else {
+      console.warn('No link provided for notification:', notification);
     }
   };
 

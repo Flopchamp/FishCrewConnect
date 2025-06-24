@@ -62,6 +62,42 @@ const ApplicationItem = ({ application, isOwner = false }) => {
       });
     }
   };
+  // Handle review submission
+  const handleReviewUser = () => {
+    if (isOwner) {
+      // Boat owner reviewing fisherman
+      router.push({
+        pathname: '/submit-review',
+        params: {
+          userId: application.user_id || application.applicant_id,
+          jobId: application.job_id,
+          recipientName: application.applicant_name || application.username || 'Fisherman',
+          jobTitle: application.job_title,
+          reviewed_user_id: application.user_id || application.applicant_id
+        }
+      });
+    } else {
+      // Fisherman reviewing boat owner
+      router.push({
+        pathname: '/submit-review',
+        params: {
+          userId: application.job_owner_id || application.owner_id,
+          jobId: application.job_id,
+          recipientName: application.owner_name || 'Boat Owner',
+          jobTitle: application.job_title,
+          reviewed_user_id: application.job_owner_id || application.owner_id
+        }
+      });
+    }
+  };
+
+  // Check if review is possible (job completed and application accepted)
+  const canReview = () => {
+    return application.job_status === 'completed' && 
+           application.status === 'accepted' && 
+           !application.has_reviewed; // Assuming we track if user has already reviewed
+  };
+
   return (
     <TouchableOpacity style={styles.container} onPress={handleViewDetails}>
       <View style={styles.header}>
@@ -88,22 +124,47 @@ const ApplicationItem = ({ application, isOwner = false }) => {
       <View style={styles.footer}>
         <View style={styles.dateContainer}>
           <Ionicons name="calendar-outline" size={16} color="#666" />
-          <Text style={styles.dateText}>Applied on {formatDate(application.application_date)}</Text>
-        </View>
-          {isOwner && (
+          <Text style={styles.dateText}>Applied on {formatDate(application.application_date)}</Text>        </View>
+          {(isOwner || canReview()) && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.viewButton]}
-              onPress={handleViewDetails}
-            >
-              <Text style={styles.viewButtonText}>View Details</Text>
-            </TouchableOpacity>            <TouchableOpacity 
-              style={[styles.actionButton, styles.messageButton]}
-              onPress={handleMessageApplicant}
-            >
-              <Ionicons name="chatbubble-outline" size={16} color="#0077B6" />
-              <Text style={styles.messageButtonText}>Message</Text>
-            </TouchableOpacity>
+            {isOwner && (
+              <>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.viewButton]}
+                  onPress={handleViewDetails}
+                >
+                  <Text style={styles.viewButtonText}>View Details</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.messageButton]}
+                  onPress={handleMessageApplicant}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color="#0077B6" />
+                  <Text style={styles.messageButtonText}>Message</Text>
+                </TouchableOpacity>
+
+                {canReview() && (
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.reviewButton]}
+                    onPress={handleReviewUser}
+                  >
+                    <Ionicons name="star-outline" size={16} color="#FF9800" />
+                    <Text style={styles.reviewButtonText}>Review</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            {!isOwner && canReview() && (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.reviewButton]}
+                onPress={handleReviewUser}
+              >
+                <Ionicons name="star-outline" size={16} color="#FF9800" />
+                <Text style={styles.reviewButtonText}>Review Boat Owner</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -204,6 +265,18 @@ const styles = StyleSheet.create({
   messageButtonText: {
     color: '#0077B6',
     marginLeft: 4,
+  },  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+  },
+  reviewButtonText: {
+    color: '#FF9800',
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

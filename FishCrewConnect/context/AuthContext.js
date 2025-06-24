@@ -197,8 +197,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-  // Sign out
+  };  // Sign out
   const signOut = async () => {
     try {
       setLoading(true);
@@ -211,8 +210,8 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setToken(null);
       
-      // Navigate to splash page (index.jsx)
-      router.replace('/');
+      // Navigate to auth options page
+      router.replace('/(auth)/auth-options');
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
