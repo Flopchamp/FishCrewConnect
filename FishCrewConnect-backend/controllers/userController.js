@@ -140,6 +140,14 @@ exports.updateUserProfile = async (req, res) => {
                 return res.status(400).json({ message: 'Years of experience must be a valid positive number.' });
             }
         }
+        
+        // Validate contact_number if provided (should only contain digits)
+        if (contact_number !== undefined && contact_number !== null && contact_number !== '') {
+            const contactStr = contact_number.toString().trim();
+            if (contactStr && !/^\d+$/.test(contactStr)) {
+                return res.status(400).json({ message: 'Contact number should only contain digits.' });
+            }
+        }
     } catch (validationError) {
         console.error('Validation error:', validationError);
         return res.status(500).json({ message: 'Error validating profile data' });

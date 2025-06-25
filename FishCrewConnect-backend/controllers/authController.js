@@ -15,6 +15,14 @@ exports.signup = async (req, res) => {
     if (!allowedUserTypes.includes(user_type)) {
         return res.status(400).json({ message: 'Invalid user type specified.' });
     }
+    
+    // Validate contact_number if provided (should only contain digits)
+    if (contact_number !== undefined && contact_number !== null && contact_number !== '') {
+        const contactStr = contact_number.toString().trim();
+        if (contactStr && !/^\d+$/.test(contactStr)) {
+            return res.status(400).json({ message: 'Contact number should only contain digits.' });
+        }
+    }
 
     try {
         // Check if email already exists

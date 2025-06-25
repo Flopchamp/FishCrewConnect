@@ -101,6 +101,14 @@ const EditProfileScreen = () => {
         validationErrors.push('Organization name is required for boat owners');
       }
       
+      // Validate contact number format (only digits allowed)
+      if (profileData.contact_number && profileData.contact_number.trim()) {
+        const contactStr = profileData.contact_number.trim();
+        if (!/^\d+$/.test(contactStr)) {
+          validationErrors.push('Contact number should only contain digits');
+        }
+      }
+      
       if (validationErrors.length > 0) {
         Alert.alert(
           'Validation Error', 
@@ -235,6 +243,8 @@ const EditProfileScreen = () => {
           value={profileData.contact_number}
           onChangeText={(text) => handleChange('contact_number', text)}
           leftIcon="call-outline"
+          keyboardType="numeric"
+          placeholder="Enter digits only"
         />
           {user?.user_type === 'fisherman' && (
           <>

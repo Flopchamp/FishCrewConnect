@@ -43,14 +43,6 @@ app.use(express.json()); // Middleware to parse JSON bodies
 // Initialize DB Connection
 require('./config/db');
 
-// ---- START DIAGNOSTIC ROUTE ----
-// COMMENTED OUT FOR THIS TEST:
-// app.get('/api/users/ping', (req, res) => {
-//   console.log('Accessed /api/users/ping directly in server.js (with http, socket.io, cors)');
-//   res.status(200).send('Pong from /api/users/ping in server.js (with http, socket.io, cors)');
-// });
-// ---- END DIAGNOSTIC ROUTE ----
-
 // Import auth routes
 const authRoutes = require('./routes/authRoutes');
 // Import user routes
@@ -77,7 +69,7 @@ app.get('/socket-health', (req, res) => {
   res.json({
     status: 'ok',
     connections: io.engine.clientsCount,
-    socketIoVersion: '4.8.1', // Hardcode version instead of requiring package.json
+    socketIoVersion: '4.8.1', 
     uptime: process.uptime()
   });
 });
