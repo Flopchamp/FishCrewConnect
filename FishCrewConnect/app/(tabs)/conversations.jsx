@@ -162,7 +162,12 @@ const ConversationsScreen = () => {
             </Text>
             {!loading && (
               <Text style={styles.emptySubtext}>
-                Your messages with boat owners and crew will appear here
+                {user?.user_type === 'fisherman' 
+                  ? 'Apply for jobs to start messaging boat owners' 
+                  : user?.user_type === 'boat_owner'
+                  ? 'Wait for applications to start messaging fishermen'
+                  : 'Your messages with boat owners and crew will appear here'
+                }
               </Text>
             )}
           </View>

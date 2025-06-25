@@ -18,9 +18,16 @@ const SignIn = () => {
     if (params.devPassword) {
       setPassword(params.devPassword.toString());
     }
-  }, [params.devEmail, params.devPassword]);const handleSignIn = async () => {
+  }, [params.devEmail, params.devPassword]);  const handleSignIn = async () => {
     // Enhanced validation
     if (!email || typeof email !== 'string' || email.trim() === '') {
+      Alert.alert('Error', 'Please enter a valid email address.');
+      return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
       Alert.alert('Error', 'Please enter a valid email address.');
       return;
     }
@@ -79,9 +86,8 @@ const SignIn = () => {
   };
 
   const handleForgotPassword = () => {
-    // Navigate to a forgot password screen (to be created)
-    // router.push('/(auth)/forgot-password');
-    alert('Forgot Password (Not Implemented)');
+    // Navigate to forgot password screen
+    router.push('/(auth)/forgot-password');
   };
 
   return (

@@ -29,6 +29,19 @@ const SignUp = () => {
       return;
     }
     
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address.');
+      return;
+    }
+    
+    // Validate password strength
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long.');
+      return;
+    }
+    
     if (password !== confirmPassword) {
       Alert.alert('Error', "Passwords don't match!");
       return;
