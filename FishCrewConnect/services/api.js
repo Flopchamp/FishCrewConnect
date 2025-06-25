@@ -259,6 +259,36 @@ export const authAPI = {
       throw { message: refreshError.response?.data?.message || 'Authentication session expired', originalError: refreshError };
     }
   },
+
+  forgotPassword: async (email) => {
+    try {
+      const response = await api.post('/api/auth/forgot-password', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Forgot password API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  },
+
+  resetPassword: async (token, newPassword) => {
+    try {
+      const response = await api.post('/api/auth/reset-password', { token, newPassword });
+      return response.data;
+    } catch (error) {
+      console.error('Reset password API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  },
 };
 
 // Jobs API methods
@@ -319,9 +349,24 @@ export const jobsAPI = {  getAllJobs: async () => {
 };
 
 // Job Applications API methods
-export const applicationsAPI = {    applyForJob: async (jobId, applicationData = { cover_letter: '' }) => {
+export const applicationsAPI = {
+  applyForJob: async (jobId, cvFile) => {
     try {
-      const response = await api.post(`/api/applications/job/${jobId}`, applicationData);
+      // Create FormData for file upload
+      const formData = new FormData();
+      
+      // Append the CV file
+      formData.append('cv_file', {
+        uri: cvFile.uri,
+        type: cvFile.mimeType || 'application/octet-stream',
+        name: cvFile.name
+      });
+
+      const response = await api.post(`/api/applications/job/${jobId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       return response.data;
     } catch (error) {
       console.error('Apply for job error:', error);
@@ -361,6 +406,18 @@ export const applicationsAPI = {    applyForJob: async (jobId, applicationData =
       return data;
     } catch (error) {
       throw error.response?.data || error.message;
+    }
+  },
+
+  downloadCV: async (applicationId) => {
+    try {
+      const response = await api.get(`/api/applications/${applicationId}/download-cv`, {
+        responseType: 'blob', // Important for file downloads
+      });
+      return response;
+    } catch (error) {
+      console.error('Download CV error:', error);
+      throw error.response?.data || { message: error.message || 'Failed to download CV' };
     }
   },
 };

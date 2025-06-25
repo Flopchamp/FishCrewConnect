@@ -40,6 +40,10 @@ app.use(cors({
 }));
 app.use(express.json()); // Middleware to parse JSON bodies
 
+// Serve uploaded files statically
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Initialize DB Connection
 require('./config/db');
 

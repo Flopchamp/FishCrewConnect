@@ -1,13 +1,10 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { applicationsAPI } from '../services/api';
 
-/**
- * ApplicationItem Component - Display individual job applications
- * @param {object} application - The application data
- * @param {boolean} isOwner - Whether the current user is the job owner
- */
+
 const ApplicationItem = ({ application, isOwner = false }) => {
   const router = useRouter();
   
@@ -32,7 +29,17 @@ const ApplicationItem = ({ application, isOwner = false }) => {
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  };  // Handle view application details
+  };  
+  // Format file size for display
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Handle view application details
   const handleViewDetails = () => {
     // Log the application data and user role for debugging
     console.log('Application data:', application);
@@ -98,6 +105,54 @@ const ApplicationItem = ({ application, isOwner = false }) => {
            !application.has_reviewed; // Assuming we track if user has already reviewed
   };
 
+  // Handle CV download
+  const handleDownloadCV = async () => {
+    if (!application.cv_file_url) {
+      Alert.alert('Error', 'CV file not available');
+      return;
+    }
+
+    try {
+      Alert.alert(
+        'CV Options',
+        `What would you like to do with ${application.applicant_name || 'this applicant'}'s CV?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'View CV', 
+            onPress: async () => {
+              try {
+                // For web/development, we can open in a new tab
+                if (typeof window !== 'undefined') {
+                  window.open(application.cv_file_url, '_blank');
+                } else {
+                  // For mobile, you would use a file viewer or WebBrowser
+                  Alert.alert('Info', 'CV viewing will open in browser');
+                }
+              } catch (_error) {
+                Alert.alert('Error', 'Failed to open CV');
+              }
+            }
+          },
+          { 
+            text: 'Download', 
+            onPress: async () => {
+              try {
+                await applicationsAPI.downloadCV(application.id);
+                Alert.alert('Success', 'CV download started');
+              } catch (_error) {
+                Alert.alert('Error', 'Failed to download CV');
+              }
+            }
+          }
+        ]
+      );
+    } catch (_error) {
+      console.error('Error handling CV:', _error);
+      Alert.alert('Error', 'Failed to access CV');
+    }
+  };
+
   return (
     <TouchableOpacity style={styles.container} onPress={handleViewDetails}>
       <View style={styles.header}>
@@ -115,10 +170,34 @@ const ApplicationItem = ({ application, isOwner = false }) => {
         <Text style={styles.locationText}>{application.location || 'Location not specified'}</Text>
       </View>
       
-      {application.cover_letter && (
-        <Text numberOfLines={2} style={styles.coverLetter}>
-          &quot;{application.cover_letter}&quot;
-        </Text>
+      {/* CV Section */}
+      {application.cv_file_name && (
+        <View style={styles.cvContainer}>
+          <View style={styles.cvIcon}>
+            <Ionicons 
+              name={application.cv_file_name?.toLowerCase().includes('.pdf') ? 'document-text' : 'document'} 
+              size={20} 
+              color="#44DBE9" 
+            />
+          </View>
+          <View style={styles.cvFileInfo}>
+            <Text style={styles.cvFileName}>{application.cv_file_name}</Text>
+            {application.cv_file_size && (
+              <Text style={styles.cvFileSize}>
+                {formatFileSize(application.cv_file_size)}
+              </Text>
+            )}
+          </View>
+          {isOwner && (
+            <TouchableOpacity 
+              style={styles.downloadButton}
+              onPress={handleDownloadCV}
+            >
+              <Ionicons name="eye-outline" size={16} color="#fff" />
+              <Text style={styles.downloadText}>View</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
       
       <View style={styles.footer}>
@@ -217,10 +296,46 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
-  coverLetter: {
-    color: '#444',
-    marginBottom: 12,
-    fontStyle: 'italic',
+  cvContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f8fcff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e3f2fd',
+  },
+  cvIcon: {
+    marginRight: 8,
+  },
+  cvFileInfo: {
+    flex: 1,
+  },
+  cvFileName: {
+    color: '#44DBE9',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  cvFileSize: {
+    color: '#718096',
+    fontSize: 12,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#44DBE9',
+    borderRadius: 4,
+  },
+  downloadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   footer: {
     flexDirection: 'row',

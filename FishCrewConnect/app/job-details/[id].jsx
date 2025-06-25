@@ -8,8 +8,7 @@ import {
   Alert,
   TouchableOpacity,
   RefreshControl,
-  Modal,
-  TextInput
+  Modal
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +18,14 @@ import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import CustomButton from '../../components/CustomButton';
 import ReviewItem from '../../components/ReviewItem';
+
+// Dynamic import for DocumentPicker to handle cases where it's not available
+let DocumentPicker = null;
+try {
+  DocumentPicker = require('expo-document-picker');
+} catch (_error) {
+  console.warn('expo-document-picker not available, using fallback');
+}
 
 const JobDetailsScreen = () => {
   const { id } = useLocalSearchParams();
@@ -35,8 +42,9 @@ const JobDetailsScreen = () => {
   const [reviews, setReviews] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [coverLetter, setCoverLetter] = useState('');
-  const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
+  const [selectedCV, setSelectedCV] = useState(null);
+  const [showFilePickerModal, setShowFilePickerModal] = useState(false);
+  const [showFilePreviewModal, setShowFilePreviewModal] = useState(false);
   
   // Load job details, owner info, application status, and reviews
   const loadJobDetails = useCallback(async () => {
@@ -90,22 +98,94 @@ const JobDetailsScreen = () => {
     loadJobDetails();
   }, [loadJobDetails]);
   
-  // Handle job application
-  const handleApply = async () => {
+  // Handle file picker
+  const pickDocument = async () => {
+    try {
+      if (DocumentPicker) {
+        // Use real document picker if available
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          copyToCacheDirectory: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const file = result.assets[0];
+          setSelectedCV(file);
+          setShowFilePickerModal(false);
+          setShowFilePreviewModal(true); // Show preview instead of immediate submission
+        }
+      } else {
+        // Fallback for when DocumentPicker is not available
+        Alert.alert(
+          'Select CV File',
+          'Document picker is not available. Using demo file for testing.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Continue with Demo', 
+              onPress: () => {
+                const demoFile = {
+                  uri: 'demo://cv.pdf',
+                  name: 'sample_cv.pdf',
+                  mimeType: 'application/pdf',
+                  size: 102400 // 100KB
+                };
+                setSelectedCV(demoFile);
+                setShowFilePickerModal(false);
+                setShowFilePreviewModal(true); // Show preview for demo file too
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to select file');
+    }
+  };
+
+  // Handle job application with file
+  const handleApplyWithFile = async (file) => {
     try {
       setApplying(true);
-      // Pass the cover letter with the application
-      await applicationsAPI.applyForJob(jobId, { cover_letter: coverLetter });
-      setShowCoverLetterModal(false);
-      Alert.alert('Success', 'Your application has been submitted');
+      await applicationsAPI.applyForJob(jobId, file);
+      Alert.alert('Success', 'Your application has been submitted with your CV');
       setHasApplied(true);
-      setCoverLetter(''); // Reset cover letter
+      setSelectedCV(null);
+      setShowFilePreviewModal(false);
     } catch (error) {
       console.error('Error applying for job:', error);
       Alert.alert('Error', 'Failed to submit your application');
     } finally {
       setApplying(false);
     }
+  };
+
+  // Handle confirming application submission
+  const handleConfirmApplication = async () => {
+    if (selectedCV) {
+      await handleApplyWithFile(selectedCV);
+    }
+  };
+
+  // Handle canceling file selection
+  const handleCancelFileSelection = () => {
+    setSelectedCV(null);
+    setShowFilePreviewModal(false);
+  };
+
+  // Format file size for display
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Handle job application
+  const handleApply = async () => {
+    setShowFilePickerModal(true);
   };
   
   // Format date for display
@@ -327,60 +407,125 @@ const JobDetailsScreen = () => {
         <View style={styles.bottomBar} padding={40}>
           <CustomButton
             title="Apply for this job"
-            onPress={() => setShowCoverLetterModal(true)}
+            onPress={handleApply}
             isLoading={applying}
             fullWidth
-            icon="paper-plane-outline"
+            icon="document-outline"
           />
         </View>
       )}
       
-      {/* Cover Letter Modal */}
+      {/* File Picker Modal */}
       <Modal
         animationType="slide"
         transparent={true}
-        visible={showCoverLetterModal}
-        onRequestClose={() => setShowCoverLetterModal(false)}
+        visible={showFilePickerModal}
+        onRequestClose={() => setShowFilePickerModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Application Cover Letter</Text>
-            <Text style={styles.modalSubtitle}>Tell us why you&apos;re a good fit for this job (optional)</Text>
+            <Text style={styles.modalTitle}>Upload Your CV</Text>
+            <Text style={styles.modalSubtitle}>Please select your CV/Resume file to apply for this job</Text>
             
-            <TextInput
-              style={styles.coverLetterInput}
-              multiline={true}
-              numberOfLines={6}
-              placeholder="Write your cover letter here..."
-              value={coverLetter}
-              onChangeText={setCoverLetter}
-              textAlignVertical="top"
-            />
+            <View style={styles.filePickerContainer}>
+              <Ionicons name="document-outline" size={60} color="#44DBE9" />
+              <Text style={styles.filePickerText}>
+                Upload PDF, DOC, or DOCX files
+              </Text>
+              <Text style={styles.filePickerSubtext}>
+                Maximum file size: 5MB
+              </Text>
+            </View>
             
             <View style={styles.modalButtonRow}>
               <TouchableOpacity 
                 style={styles.cancelButton}
-                onPress={() => setShowCoverLetterModal(false)}
+                onPress={() => setShowFilePickerModal(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 style={styles.submitButton}
-                onPress={handleApply}
+                onPress={pickDocument}
                 disabled={applying}
               >
                 {applying ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Submit Application</Text>
+                  <Text style={styles.submitButtonText}>Select CV File</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-        {hasApplied && (
+      
+      {/* File Preview Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showFilePreviewModal}
+        onRequestClose={handleCancelFileSelection}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Review Your CV</Text>
+            <Text style={styles.modalSubtitle}>Please review your selected file before submitting</Text>
+            
+            {selectedCV && (
+              <View style={styles.filePreviewContainer}>
+                <View style={styles.fileIcon}>
+                  <Ionicons 
+                    name={selectedCV.mimeType?.includes('pdf') ? 'document-text' : 'document'} 
+                    size={48} 
+                    color="#44DBE9" 
+                  />
+                </View>
+                
+                <View style={styles.fileDetails}>
+                  <Text style={styles.fileName}>{selectedCV.name}</Text>
+                  <Text style={styles.fileSize}>{formatFileSize(selectedCV.size)}</Text>
+                  <Text style={styles.fileType}>
+                    {selectedCV.mimeType === 'application/pdf' ? 'PDF Document' :
+                     selectedCV.mimeType?.includes('word') ? 'Word Document' :
+                     'Document'}
+                  </Text>
+                </View>
+              </View>
+            )}
+            
+            <View style={styles.previewActions}>
+              <Text style={styles.confirmationText}>
+                Are you ready to submit your application with this CV?
+              </Text>
+              
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity 
+                  style={[styles.cancelButton, styles.changeFileButton]}
+                  onPress={handleCancelFileSelection}
+                >
+                  <Text style={styles.cancelButtonText}>Change File</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.submitButton}
+                  onPress={handleConfirmApplication}
+                  disabled={applying}
+                >
+                  {applying ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Submit Application</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {hasApplied && (
         <View style={styles.bottomBar}>
           <View style={styles.appliedBadge}>
             <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
@@ -431,6 +576,72 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 16,
+  },
+  filePickerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    borderWidth: 2,
+    borderColor: '#44DBE9',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    backgroundColor: '#f8fcff',
+    marginBottom: 20,
+  },
+  filePickerText: {
+    fontSize: 16,
+    color: '#44DBE9',
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  filePickerSubtext: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  filePreviewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f8fcff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e3f2fd',
+    marginBottom: 20,
+  },
+  fileIcon: {
+    marginRight: 16,
+  },
+  fileDetails: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 4,
+  },
+  fileSize: {
+    fontSize: 14,
+    color: '#718096',
+    marginBottom: 2,
+  },
+  fileType: {
+    fontSize: 12,
+    color: '#44DBE9',
+    fontWeight: '500',
+  },
+  previewActions: {
+    marginTop: 8,
+  },
+  confirmationText: {
+    fontSize: 14,
+    color: '#4A5568',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
   },
   coverLetterInput: {
     borderWidth: 1,
@@ -637,8 +848,6 @@ const styles = StyleSheet.create({
   editJobButtonText: {
     color: '#44DBE9',
     fontWeight: '600',
-  },  viewApplicationsButton: {
-    backgroundColor: '#0077B6',
   },
   employerReviewButton: {
     backgroundColor: '#f8f9fa',
