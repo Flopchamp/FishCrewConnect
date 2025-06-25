@@ -6,9 +6,11 @@ import SafeScreenWrapper from '../components/SafeScreenWrapper';
 import HeaderBox from '../components/HeaderBox';
 import DefaultProfileImage from '../components/DefaultProfileImage';
 import { userAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const ContactsScreen = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState([]);
   const [filteredContacts, setFilteredContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,6 +50,24 @@ const ContactsScreen = () => {
     setFilteredContacts(filtered);
   }, [searchQuery, contacts]);
   
+  const getEmptyStateMessage = () => {
+    if (user?.user_type === 'fisherman') {
+      return 'No boat owners to message yet';
+    } else if (user?.user_type === 'boat_owner') {
+      return 'No fishermen to message yet';
+    }
+    return 'No contacts available';
+  };
+  
+  const getEmptyStateSubMessage = () => {
+    if (user?.user_type === 'fisherman') {
+      return 'Apply for jobs to start messaging boat owners';
+    } else if (user?.user_type === 'boat_owner') {
+      return 'Wait for fishermen to apply to your jobs to start messaging';
+    }
+    return '';
+  };
+  
   const navigateToChat = (contact) => {
     router.push({
       pathname: '/messaging',
@@ -77,6 +97,9 @@ const ContactsScreen = () => {
       
       <View style={styles.contactInfo}>
         <Text style={styles.contactName}>{item.name}</Text>
+        {item.organization_name && (
+          <Text style={styles.organizationName}>{item.organization_name}</Text>
+        )}
         <View style={styles.contactDetails}>
           <Text style={styles.contactType}>
             {item.userType === 'boat_owner' ? 'Boat Owner' : 'Fisherman'}
@@ -124,8 +147,13 @@ const ContactsScreen = () => {
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={60} color="#ccc" />
               <Text style={styles.emptyText}>
-                {searchQuery ? 'No matching contacts' : 'No contacts available'}
+                {searchQuery ? 'No matching contacts' : getEmptyStateMessage()}
               </Text>
+              {!searchQuery && (
+                <Text style={styles.emptySubText}>
+                  {getEmptyStateSubMessage()}
+                </Text>
+              )}
             </View>
           }
         />
@@ -177,6 +205,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  organizationName: {
+    fontSize: 14,
+    color: '#0077B6',
+    fontWeight: '500',
+    marginTop: 2,
+  },
   contactDetails: {
     flexDirection: 'row',
     marginTop: 4,
@@ -210,6 +244,13 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 16,
     textAlign: 'center',
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
 });
 
