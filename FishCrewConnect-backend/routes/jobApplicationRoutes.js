@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const jobApplicationController = require('../controllers/jobApplicationController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { uploadCV, handleUploadError } = require('../middleware/uploadMiddleware');
 
 // @route   POST /api/applications/job/:jobId
-// @desc    Apply for a specific job
+// @desc    Apply for a specific job with CV upload
 // @access  Private (Crew members/Fishermen)
-router.post('/job/:jobId', authMiddleware, jobApplicationController.applyForJob);
+router.post('/job/:jobId', authMiddleware, uploadCV, handleUploadError, jobApplicationController.applyForJob);
 
 // @route   GET /api/applications/job/:jobId
 // @desc    Get all applications for a specific job (for boat owner)
@@ -22,5 +23,10 @@ router.get('/my', authMiddleware, jobApplicationController.getMyApplications);
 // @desc    Update the status of an application (for boat owner)
 // @access  Private (Boat owner of the job related to the application)
 router.put('/:applicationId/status', authMiddleware, jobApplicationController.updateApplicationStatus);
+
+// @route   GET /api/applications/:applicationId/download-cv
+// @desc    Download CV file for an application
+// @access  Private (Boat owner of the job or the applicant themselves)
+router.get('/:applicationId/download-cv', authMiddleware, jobApplicationController.downloadCV);
 
 module.exports = router;

@@ -18,6 +18,16 @@ router.post('/signin', authController.signin);
 // @access  Public (with expired token)
 router.post('/refresh', authController.refreshToken);
 
+// @route   POST api/auth/forgot-password
+// @desc    Request password reset
+// @access  Public
+router.post('/forgot-password', authController.forgotPassword);
+
+// @route   POST api/auth/reset-password
+// @desc    Reset password with token
+// @access  Public
+router.post('/reset-password', authController.resetPassword);
+
 // ---- START DIAGNOSTIC ROUTE in authRoutes.js ----
 router.get('/ping', (req, res) => {
   console.log('Accessed /api/auth/ping in authRoutes.js');
