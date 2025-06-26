@@ -16,7 +16,7 @@ const NotificationItem = ({ notification, onMarkAsRead }) => {
       case 'new_application':
         return 'document-text-outline';
       case 'application_status':
-      case 'application_status_update':
+      case 'application_update':
         // Check if we can determine the status from the message
         if (notification.message) {
           if (notification.message.toLowerCase().includes('accepted')) {

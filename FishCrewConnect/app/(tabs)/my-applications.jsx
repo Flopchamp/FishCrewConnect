@@ -90,7 +90,7 @@ const MyApplicationsScreen = () => {
             loadApplications();
           }        } else {
           // FISHERMAN NOTIFICATIONS
-          if (notification.type === 'application_status_update') {
+          if (notification.type === 'application_update') {
             // Notification for fishermen when their application status changes
             console.log('Fisherman received application status update');
             

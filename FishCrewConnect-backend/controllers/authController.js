@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../config/db'); // MySQL connection pool
 require('dotenv').config(); // To access JWT_SECRET from .env
 
@@ -10,6 +11,17 @@ exports.signup = async (req, res) => {
     // Basic validation
     if (!name || !email || !password || !user_type) {
         return res.status(400).json({ message: 'Please provide name, email, password, and user type.' });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+    
+    // Validate password strength
+    if (password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
     }    // Validate user_type against allowed enum values
     const allowedUserTypes = ['boat_owner', 'fisherman', 'admin'];
     if (!allowedUserTypes.includes(user_type)) {
@@ -71,6 +83,12 @@ exports.signin = async (req, res) => {
     // Basic validation
     if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required.' });
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
     }
 
     try {
@@ -202,6 +220,105 @@ exports.refreshToken = async (req, res) => {
     } catch (error) {
         console.error('Error in refreshToken:', error);
         res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Request password reset
+// @route   POST /api/auth/forgot-password
+// @access  Public
+exports.forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    // Basic validation
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    try {
+        // Check if user exists
+        const [users] = await db.query('SELECT user_id, email, name FROM users WHERE email = ?', [email]);
+        
+        if (users.length === 0) {
+            // For security, don't reveal if email exists or not
+            return res.status(200).json({ 
+                message: 'If an account with that email exists, a password reset link has been sent.' 
+            });
+        }
+
+        const user = users[0];
+
+        // Generate a secure reset token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+        // Store the reset token in database
+        await db.query(
+            'INSERT INTO password_resets (user_id, reset_token, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reset_token = ?, expires_at = ?',
+            [user.user_id, resetToken, resetTokenExpiry, resetToken, resetTokenExpiry]
+        );
+
+        // In a real app, you would send an email here
+        // For now, we'll return the token for testing purposes
+        console.log(`Password reset token for ${email}: ${resetToken}`);
+        
+        res.status(200).json({ 
+            message: 'If an account with that email exists, a password reset link has been sent.',
+            // Remove this in production - only for testing
+            resetToken: resetToken
+        });
+
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ message: 'Server error during password reset request.' });
+    }
+};
+
+// @desc    Reset password with token
+// @route   POST /api/auth/reset-password
+// @access  Public
+exports.resetPassword = async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    // Basic validation
+    if (!token || !newPassword) {
+        return res.status(400).json({ message: 'Token and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
+    try {
+        // Find valid reset token
+        const [resetRequests] = await db.query(
+            'SELECT pr.user_id, pr.expires_at, u.email FROM password_resets pr JOIN users u ON pr.user_id = u.user_id WHERE pr.reset_token = ? AND pr.expires_at > NOW()',
+            [token]
+        );
+
+        if (resetRequests.length === 0) {
+            return res.status(400).json({ message: 'Invalid or expired reset token.' });
+        }
+
+        const resetRequest = resetRequests[0];
+
+        // Hash the new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user password
+        await db.query(
+            'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE user_id = ?',
+            [hashedPassword, resetRequest.user_id]
+        );
+
+        // Remove the used reset token
+        await db.query('DELETE FROM password_resets WHERE user_id = ?', [resetRequest.user_id]);
+
+        res.status(200).json({ message: 'Password has been reset successfully. You can now sign in with your new password.' });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ message: 'Server error during password reset.' });
     }
 };
 

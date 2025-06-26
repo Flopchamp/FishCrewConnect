@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { applicationsAPI, jobsAPI } from '../../services/api';
@@ -100,6 +100,47 @@ const JobApplicationsScreen = () => {
     });
   };
   
+  // Handle CV viewing
+  const handleViewCV = async (application) => {
+    console.log('=== CV Debug Info ===');
+    console.log('CV file URL:', application.cv_file_url);
+    console.log('CV file name:', application.cv_file_name);
+    console.log('Full application data:', JSON.stringify(application, null, 2));
+    
+    if (!application.cv_file_url) {
+      Alert.alert('CV Not Available', 'This applicant has not uploaded a CV file.');
+      return;
+    }
+
+    try {
+      // Construct the full URL if it's a relative path
+      let cvUrl = application.cv_file_url;
+      if (cvUrl && !cvUrl.startsWith('http')) {
+        const { API_URL } = require('../../config/api');
+        // Don't double-encode - if the URL already contains encoded characters, use as-is
+        cvUrl = `${API_URL}${cvUrl}`;
+      }
+      
+      console.log('Final CV URL:', cvUrl);
+
+      // Directly open the CV without showing options
+      try {
+        if (cvUrl) {
+          console.log('Opening CV URL:', cvUrl);
+          await Linking.openURL(cvUrl);
+        } else {
+          Alert.alert('Error', 'CV URL not available');
+        }
+      } catch (_error) {
+        console.error('Error opening CV:', _error);
+        Alert.alert('Error', `Failed to open CV: ${_error.message || 'Unknown error'}`);
+      }
+    } catch (_error) {
+      console.error('Error handling CV:', _error);
+      Alert.alert('Error', `Failed to handle CV: ${_error.message || 'Unknown error'}`);
+    }
+  };
+  
   // Handle reviewing an applicant
   const handleReviewApplicant = (item) => {
     router.push({
@@ -163,15 +204,40 @@ const JobApplicationsScreen = () => {
               </View>
             </View>
           </View>
+            
+          <View style={styles.actionButtonsContainer}>
             <TouchableOpacity 
-            style={styles.messageButtonEnhanced}
-            onPress={() => handleMessageApplicant(item)}
-          >
-            <View style={styles.messageButtonContent}>
-              <Ionicons name="chatbubble-outline" size={20} color="white" />
-              <Text style={styles.messageButtonText}>Message</Text>
-            </View>
-          </TouchableOpacity>
+              style={styles.messageButtonEnhanced}
+              onPress={() => handleMessageApplicant(item)}
+            >
+              <View style={styles.messageButtonContent}>
+                <Ionicons name="chatbubble-outline" size={20} color="white" />
+                <Text style={styles.messageButtonText}>Message</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                item.cv_file_url ? styles.cvButtonEnhanced : styles.cvButtonDisabled
+              ]}
+              onPress={() => handleViewCV(item)}
+              disabled={!item.cv_file_url}
+            >
+              <View style={styles.messageButtonContent}>
+                <Ionicons 
+                  name={item.cv_file_url ? "document-text-outline" : "document-outline"} 
+                  size={20} 
+                  color={item.cv_file_url ? "white" : "#999"} 
+                />
+                <Text style={[
+                  styles.messageButtonText,
+                  !item.cv_file_url && styles.disabledButtonText
+                ]}>
+                  {item.cv_file_url ? 'View CV' : 'No CV'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
             {(item.experience_years || item.skills) && (
         <View style={styles.applicantInfoContainer}>
@@ -576,6 +642,17 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '500',
   },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  cvButtonEnhanced: {
+    backgroundColor: '#FF9800',
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    elevation: 1,
+  },
   sortContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -654,6 +731,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 6,
+  },
+  cvButtonDisabled: {
+    backgroundColor: '#ccc',
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    elevation: 1,
+  },
+  disabledButtonText: {
+    color: '#999',
   },
 });
 

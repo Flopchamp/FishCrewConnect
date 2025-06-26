@@ -8,7 +8,20 @@ exports.applyForJob = async (req, res) => {
     const userId = req.user.id; // Assuming user ID is available from authMiddleware
     
     // Make cover_letter optional with default empty string
-    const cover_letter = req.body && req.body.cover_letter ? req.body.cover_letter : '';    // Check if user is a fisherman
+    const cover_letter = req.body && req.body.cover_letter ? req.body.cover_letter : '';
+    
+    // Handle CV file upload
+    let cv_file_url = null;
+    let cv_file_name = null;
+    let cv_file_size = null;
+    
+    if (req.file) {
+        cv_file_url = `/uploads/cvs/${req.file.filename}`;
+        cv_file_name = req.file.originalname;
+        cv_file_size = req.file.size;
+    }
+    
+    // Check if user is a fisherman
     if (req.user.user_type !== 'fisherman') {
         return res.status(403).json({ message: 'Only fishermen can apply for jobs' });
     }
@@ -32,9 +45,10 @@ exports.applyForJob = async (req, res) => {
             return res.status(400).json({ message: 'You have already applied for this job' });
         }
 
+        // Insert application with CV information
         const [result] = await db.query(
-            "INSERT INTO job_applications (job_id, user_id, cover_letter) VALUES (?, ?, ?)",
-            [jobId, userId, cover_letter]
+            "INSERT INTO job_applications (job_id, user_id, cover_letter, cv_file_url, cv_file_name, cv_file_size) VALUES (?, ?, ?, ?, ?, ?)",
+            [jobId, userId, cover_letter, cv_file_url, cv_file_name, cv_file_size]
         );
         const [newApplication] = await db.query("SELECT * FROM job_applications WHERE id = ?", [result.insertId]);
 
@@ -150,9 +164,9 @@ exports.getMyApplications = async (req, res) => {
     }
 };
 
-// @desc    Update application status (for boat owner)
-// @route   PUT /api/applications/:applicationId/status
-// @access  Private (Boat owner of the job related to the application)
+//    Update application status (for boat owner)
+//  PUT /api/applications/:applicationId/status
+//  Private (Boat owner of the job related to the application)
 exports.updateApplicationStatus = async (req, res) => {
     const { applicationId } = req.params;
     const { status } = req.body; // e.g., 'viewed', 'shortlisted', 'accepted', 'rejected'
@@ -197,7 +211,7 @@ exports.updateApplicationStatus = async (req, res) => {
             notificationMessage = `Congratulations! Your application for the job \"${jobTitle}\" has been accepted.`;
         } else if (status === 'rejected') {
             notificationMessage = `We regret to inform you that your application for the job \"${jobTitle}\" has been rejected.`;
-        }        const notificationType = 'application_status_update';
+        }        const notificationType = 'application_update';
         const notificationLink = `/(tabs)/my-applications`;
         
         const [notifResult] = await db.query(
@@ -223,3 +237,5 @@ exports.updateApplicationStatus = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+

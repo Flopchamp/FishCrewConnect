@@ -2,7 +2,6 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { applicationsAPI } from '../services/api';
 
 
 const ApplicationItem = ({ application, isOwner = false }) => {
@@ -105,51 +104,36 @@ const ApplicationItem = ({ application, isOwner = false }) => {
            !application.has_reviewed; // Assuming we track if user has already reviewed
   };
 
-  // Handle CV download
-  const handleDownloadCV = async () => {
+  // Handle CV viewing
+  const handleViewCV = async () => {
+    console.log('CV file URL:', application.cv_file_url);
+    console.log('Application data:', application);
+    
     if (!application.cv_file_url) {
       Alert.alert('Error', 'CV file not available');
       return;
     }
 
     try {
-      Alert.alert(
-        'CV Options',
-        `What would you like to do with ${application.applicant_name || 'this applicant'}'s CV?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'View CV', 
-            onPress: async () => {
-              try {
-                // For web/development, we can open in a new tab
-                if (typeof window !== 'undefined') {
-                  window.open(application.cv_file_url, '_blank');
-                } else {
-                  // For mobile, you would use a file viewer or WebBrowser
-                  Alert.alert('Info', 'CV viewing will open in browser');
-                }
-              } catch (_error) {
-                Alert.alert('Error', 'Failed to open CV');
-              }
-            }
-          },
-          { 
-            text: 'Download', 
-            onPress: async () => {
-              try {
-                await applicationsAPI.downloadCV(application.id);
-                Alert.alert('Success', 'CV download started');
-              } catch (_error) {
-                Alert.alert('Error', 'Failed to download CV');
-              }
-            }
-          }
-        ]
-      );
+      // Directly open the CV without showing options
+      const { Linking } = require('react-native');
+      
+      // Construct the full URL if it's a relative path
+      let cvUrl = application.cv_file_url;
+      if (cvUrl && !cvUrl.startsWith('http')) {
+        // Assuming your API base URL is available
+        const { API_URL } = require('../config/api');
+        cvUrl = `${API_URL}${cvUrl}`;
+      }
+      
+      if (cvUrl) {
+        await Linking.openURL(cvUrl);
+      } else {
+        Alert.alert('Error', 'CV URL not available');
+      }
     } catch (_error) {
-      console.error('Error handling CV:', _error);
-      Alert.alert('Error', 'Failed to access CV');
+      console.error('Error opening CV:', _error);
+      Alert.alert('Error', 'Failed to open CV. Please check if a PDF viewer is installed.');
     }
   };
 
@@ -191,7 +175,7 @@ const ApplicationItem = ({ application, isOwner = false }) => {
           {isOwner && (
             <TouchableOpacity 
               style={styles.downloadButton}
-              onPress={handleDownloadCV}
+              onPress={handleViewCV}
             >
               <Ionicons name="eye-outline" size={16} color="#fff" />
               <Text style={styles.downloadText}>View</Text>

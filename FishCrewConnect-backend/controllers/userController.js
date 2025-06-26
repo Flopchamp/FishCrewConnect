@@ -329,26 +329,61 @@ exports.getUserRating = async (req, res) => {
 exports.getAllContacts = async (req, res) => {
     try {
         const currentUserId = req.user.id;
+        const currentUserType = req.user.user_type;
         
-        // Fetch all users except the current one, with minimal data needed for contacts
-        const [users] = await db.query(
-            `SELECT u.user_id as id, u.name, u.user_type, 
-                    p.profile_image, p.location
-             FROM users u
-             LEFT JOIN user_profiles p ON u.user_id = p.user_id
-             WHERE u.user_id != ?
-             ORDER BY u.name ASC`,
-            [currentUserId]
-        );
+        let contacts = [];
+        
+        if (currentUserType === 'fisherman') {
+            // For fishermen: show only boat owners they have applied to
+            const [users] = await db.query(
+                `SELECT DISTINCT u.user_id as id, u.name, u.user_type, 
+                        p.profile_image, p.location, u.organization_name
+                 FROM users u
+                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
+                 INNER JOIN jobs j ON u.user_id = j.user_id
+                 INNER JOIN job_applications ja ON j.job_id = ja.job_id
+                 WHERE ja.user_id = ? AND u.user_type = 'boat_owner'
+                 ORDER BY u.name ASC`,
+                [currentUserId]
+            );
+            contacts = users;
+        } else if (currentUserType === 'boat_owner') {
+            // For boat owners: show only fishermen who have applied to their jobs
+            const [users] = await db.query(
+                `SELECT DISTINCT u.user_id as id, u.name, u.user_type, 
+                        p.profile_image, p.location
+                 FROM users u
+                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
+                 INNER JOIN job_applications ja ON u.user_id = ja.user_id
+                 INNER JOIN jobs j ON ja.job_id = j.job_id
+                 WHERE j.user_id = ? AND u.user_type = 'fisherman'
+                 ORDER BY u.name ASC`,
+                [currentUserId]
+            );
+            contacts = users;
+        } else {
+            // For admin or other roles: show all users (fallback to original behavior)
+            const [users] = await db.query(
+                `SELECT u.user_id as id, u.name, u.user_type, 
+                        p.profile_image, p.location
+                 FROM users u
+                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
+                 WHERE u.user_id != ?
+                 ORDER BY u.name ASC`,
+                [currentUserId]
+            );
+            contacts = users;
+        }
 
         // Format user_type to match frontend expectations
-        const contacts = users.map(user => ({
+        const formattedContacts = contacts.map(user => ({
             ...user,
             userType: user.user_type,
-            profileImage: user.profile_image
+            profileImage: user.profile_image,
+            location: user.location || 'Location not specified'
         }));
 
-        res.json(contacts);
+        res.json(formattedContacts);
     } catch (error) {
         console.error('Error fetching contacts:', error);
         res.status(500).json({ message: 'Server error while fetching contacts.' });
