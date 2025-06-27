@@ -18,6 +18,10 @@ router.post('/users/:userId/suspend', adminController.suspendUser);
 router.post('/users/:userId/unsuspend', adminController.unsuspendUser);
 router.get('/users/:userId/suspension-history', adminController.getUserSuspensionHistory);
 
+// User verification routes
+router.get('/users/pending', adminController.getPendingUsers);
+router.post('/users/:userId/verify', adminController.verifyUser);
+
 // Job management routes
 router.get('/jobs', adminController.getAllJobs);
 router.put('/jobs/:id/status', adminController.updateJobStatus);

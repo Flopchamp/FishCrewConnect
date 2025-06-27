@@ -1,5 +1,16 @@
 const db = require('../config/db');
 
+// Helper function to convert relative image URLs to full URLs
+const getFullImageUrl = (relativePath, req) => {
+    if (!relativePath) return null;
+    if (relativePath.startsWith('http')) return relativePath; // Already a full URL
+    
+    // Construct full URL using request host
+    const protocol = req.protocol || 'http';
+    const host = req.get('host') || 'localhost:3001';
+    return `${protocol}://${host}${relativePath}`;
+};
+
 // @desc    Get current user profile with extended profile data
 // @route   GET /api/users/me
 // @access  Private
@@ -52,6 +63,11 @@ exports.getUserProfile = async (req, res) => {
             
             // Merge the data
             Object.assign(userData, profileData);
+            
+            // Convert profile image to full URL
+            if (userData.profile_image) {
+                userData.profile_image = getFullImageUrl(userData.profile_image, req);
+            }
         } else {
             // If no profile data exists, add default values for the frontend
             userData.profile_image = null;
@@ -102,7 +118,6 @@ exports.updateUserProfile = async (req, res) => {
         organization_name,
         
         // Extended profile fields
-        profile_image,
         location,
         years_experience,
         bio,
@@ -112,6 +127,50 @@ exports.updateUserProfile = async (req, res) => {
     } = req.body;
     
     const userId = req.user.id; // From authMiddleware
+    
+    // Handle profile image upload
+    let profile_image_url = null;
+    if (req.file) {
+        profile_image_url = `/uploads/profile-images/${req.file.filename}`;
+    }
+    
+    // Convert FormData string values to proper types
+    let convertedYearsExperience = years_experience;
+    let convertedAvailable = available;
+    let convertedSpecialties = specialties;
+    let convertedSkills = skills;
+    
+    // Convert years_experience to number if it's a string
+    if (typeof years_experience === 'string' && years_experience !== '') {
+        convertedYearsExperience = parseInt(years_experience, 10);
+        if (isNaN(convertedYearsExperience)) {
+            convertedYearsExperience = 0;
+        }
+    }
+    
+    // Convert available to boolean if it's a string
+    if (typeof available === 'string') {
+        convertedAvailable = available === 'true' || available === '1';
+    }
+    
+    // Parse JSON strings for specialties and skills if they come as strings
+    if (typeof specialties === 'string') {
+        try {
+            convertedSpecialties = JSON.parse(specialties);
+        } catch (e) {
+            // If parsing fails, treat as empty array
+            convertedSpecialties = [];
+        }
+    }
+    
+    if (typeof skills === 'string') {
+        try {
+            convertedSkills = JSON.parse(skills);
+        } catch (e) {
+            // If parsing fails, treat as empty array
+            convertedSkills = [];
+        }
+    }
     
     // Validate required fields based on user type
     try {
@@ -134,9 +193,8 @@ exports.updateUserProfile = async (req, res) => {
             return res.status(400).json({ message: 'Organization name is required for boat owners.' });
         }
           // Validate years_experience if provided
-        if (years_experience !== undefined && years_experience !== null) {
-            const yearsExp = parseInt(years_experience);
-            if (isNaN(yearsExp) || yearsExp < 0) {
+        if (convertedYearsExperience !== undefined && convertedYearsExperience !== null) {
+            if (isNaN(convertedYearsExperience) || convertedYearsExperience < 0) {
                 return res.status(400).json({ message: 'Years of experience must be a valid positive number.' });
             }
         }
@@ -181,13 +239,13 @@ exports.updateUserProfile = async (req, res) => {
 
         // Now handle the extended profile fields
         const profileFields = {
-            profile_image,
+            profile_image: profile_image_url, // Use uploaded file URL
             location,
-            years_experience,
+            years_experience: convertedYearsExperience,
             bio,
-            specialties: specialties ? JSON.stringify(specialties) : undefined,
-            skills: skills ? JSON.stringify(skills) : undefined,
-            available
+            specialties: convertedSpecialties ? JSON.stringify(convertedSpecialties) : undefined,
+            skills: convertedSkills ? JSON.stringify(convertedSkills) : undefined,
+            available: convertedAvailable
         };
         
         // Filter out undefined values
@@ -271,6 +329,11 @@ exports.updateUserProfile = async (req, res) => {
             
             // Merge data
             Object.assign(userData, profileData);
+            
+            // Convert profile image to full URL
+            if (userData.profile_image) {
+                userData.profile_image = getFullImageUrl(userData.profile_image, req);
+            }
         }
         
         res.json(userData);    } catch (error) {
@@ -443,6 +506,11 @@ exports.getUserById = async (req, res) => {
             
             // Merge user data with profile data
             Object.assign(userData, profileData);
+            
+            // Convert profile image to full URL
+            if (userData.profile_image) {
+                userData.profile_image = getFullImageUrl(userData.profile_image, req);
+            }
         } else {
             // If no profile exists, set default values
             userData.profile_image = null;

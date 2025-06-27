@@ -3,12 +3,13 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 const reviewController = require('../controllers/reviewController');
 const authMiddleware = require('../middleware/authMiddleware');
+const { uploadProfileImage, handleUploadError } = require('../middleware/uploadMiddleware');
 
 // @route   GET /api/users/me
 // @desc    Get current logged-in user's profile
 // @access  Private
 router.get('/me', authMiddleware, userController.getUserProfile);
-router.put('/me', authMiddleware, userController.updateUserProfile);
+router.put('/me', authMiddleware, uploadProfileImage, handleUploadError, userController.updateUserProfile);
 
 // @route   GET /api/users/contacts
 // @desc    Get all users as contacts (excluding current user)

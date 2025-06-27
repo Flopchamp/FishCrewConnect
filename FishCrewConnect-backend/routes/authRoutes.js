@@ -28,6 +28,26 @@ router.post('/forgot-password', authController.forgotPassword);
 // @access  Public
 router.post('/reset-password', authController.resetPassword);
 
+// @route   POST api/auth/reset-password-direct
+// @desc    Reset password directly with email (no token required)
+// @access  Public
+router.post('/reset-password-direct', authController.resetPasswordDirect);
+
+// @route   POST api/auth/check-email
+// @desc    Check if email exists in the system
+// @access  Public
+router.post('/check-email', authController.checkEmail);
+
+// @route   POST api/auth/send-otp
+// @desc    Send OTP for password reset verification
+// @access  Public
+router.post('/send-otp', authController.sendOTP);
+
+// @route   POST api/auth/verify-otp
+// @desc    Verify OTP for password reset
+// @access  Public
+router.post('/verify-otp', authController.verifyOTP);
+
 // ---- START DIAGNOSTIC ROUTE in authRoutes.js ----
 router.get('/ping', (req, res) => {
   console.log('Accessed /api/auth/ping in authRoutes.js');

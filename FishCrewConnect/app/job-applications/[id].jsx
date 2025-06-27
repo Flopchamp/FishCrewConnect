@@ -6,6 +6,7 @@ import { applicationsAPI, jobsAPI } from '../../services/api';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import DefaultProfileImage from '../../components/DefaultProfileImage';
+import PaymentModal from '../../components/PaymentModal';
 
 const JobApplicationsScreen = () => {
   const { id: jobId } = useLocalSearchParams();
@@ -17,6 +18,8 @@ const JobApplicationsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);  const [updatingStatus, setUpdatingStatus] = useState(null);
   const [sortBy, setSortBy] = useState('date'); // 'date', 'name', 'status'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState(null);
     const loadApplications = useCallback(async () => {
     if (!jobId) {
       console.error('No job ID provided');
@@ -160,6 +163,51 @@ const JobApplicationsScreen = () => {
     return job?.status === 'completed' && 
            item.status === 'accepted' && 
            !item.has_reviewed; // Assuming we track if review has been given
+  };
+
+  // Handle payment initiation
+  const handlePayFisherman = (application) => {
+    // Only allow payment for completed jobs with accepted applications
+    if (job?.status !== 'completed') {
+      Alert.alert('Payment Not Available', 'You can only pay fishermen after the job is completed.');
+      return;
+    }
+    
+    if (application.status !== 'accepted') {
+      Alert.alert('Payment Not Available', 'You can only pay fishermen who were accepted for the job.');
+      return;
+    }
+    
+    setSelectedApplication(application);
+    setPaymentModalVisible(true);
+  };
+
+  const handlePaymentSuccess = (paymentData) => {
+    Alert.alert(
+      'Payment Initiated',
+      `Payment of KSH ${paymentData.amount.toLocaleString()} has been initiated successfully!`,
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            setPaymentModalVisible(false);
+            setSelectedApplication(null);
+            // Refresh applications to show updated status
+            loadApplications();
+          }
+        }
+      ]
+    );
+  };
+
+  const closePaymentModal = () => {
+    setPaymentModalVisible(false);
+    setSelectedApplication(null);
+  };
+
+  // Check if payment is possible for an application
+  const canPayFisherman = (application) => {
+    return job?.status === 'completed' && application.status === 'accepted';
   };
 
   // Get status color based on status value
@@ -310,6 +358,17 @@ const JobApplicationsScreen = () => {
               <Text style={styles.reviewButtonText}>Review Fisherman</Text>
             </TouchableOpacity>
           )}
+
+          {/* Payment Button - Show only if job is completed and applicant was accepted */}
+          {canPayFisherman(item) && (
+            <TouchableOpacity
+              style={styles.payButton}
+              onPress={() => handlePayFisherman(item)}
+            >
+              <Ionicons name="card-outline" size={20} color="#4CAF50" />
+              <Text style={styles.payButtonText}>Pay Fisherman</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {canReviewApplicant(item) && (
@@ -457,6 +516,17 @@ const JobApplicationsScreen = () => {
             }
           />
         </>
+      )}
+      
+      {/* Payment Modal - Separate from the main content */}
+      {paymentModalVisible && selectedApplication && (
+        <PaymentModal
+          visible={paymentModalVisible}
+          onClose={closePaymentModal}
+          onPaymentSuccess={handlePaymentSuccess}
+          application={selectedApplication}
+          job={job}
+        />
       )}
     </SafeScreenWrapper>
   );
