@@ -9,6 +9,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -55,13 +56,14 @@ const userRoutes = require('./routes/userRoutes'); // Re-enabled
 // Use auth routes
 app.use('/api/auth', authRoutes);
 // Use user routes
-app.use('/api/users', userRoutes); // Re-enabled
+app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', jobApplicationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Basic Routes
 app.get('/', (req, res) => {
@@ -80,18 +82,18 @@ app.get('/socket-health', (req, res) => {
 
 // Socket.IO connection
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  // User connected - removed console log to reduce noise
 
-  // Join a room based on user ID if provided (e.g., after authentication)
-  // The client should emit a 'join_room' event with their user ID after connecting
+  // Join a room based on user ID if provided (e.g., after authentication)  
   socket.on('join_room', (userId) => {
     if (userId) {
       socket.join(userId.toString());
-      console.log(`Socket ${socket.id} joined room for user ${userId}`);
+      // User joined room - console log removed
     }
   });
+  
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    // User disconnected - console log removed
   });
 
   // Handle real-time messaging
@@ -100,7 +102,7 @@ io.on('connection', (socket) => {
       const { recipientId, text, senderId } = messageData;
       
       if (recipientId && text) {
-        console.log(`Sending message to user ${recipientId}: ${text}`);
+        // Message processing - console log removed for cleaner output
         
         // Forward the message to the recipient's room
         io.to(recipientId.toString()).emit('new_message', {
@@ -120,5 +122,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server with authRoutes and userRoutes listening on port ${PORT}`); // Updated message
+  console.log(`🚀 FishCrewConnect Server running on port ${PORT}`);
 });
