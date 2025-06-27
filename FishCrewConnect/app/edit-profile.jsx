@@ -70,8 +70,10 @@ const EditProfileScreen = () => {
     if (status !== 'granted') {
       Alert.alert('Permission required', 'Please allow access to your photo library to change your profile image.');
       return;
-    }    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['photo'], // Using strings instead of the enum
+    }
+    
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -147,7 +149,16 @@ const EditProfileScreen = () => {
       // Show saving indicator
       setIsLoading(true);
         // Update profile through context/API with JWT authentication
-      await updateProfile(updatedData);
+      const updatedUser = await updateProfile(updatedData);
+      
+      // Update local profile image state with the new URL from server
+      if (updatedUser && updatedUser.profile_image) {
+        // Add timestamp to prevent caching issues with new images
+        const imageUrl = updatedUser.profile_image.includes('?') 
+          ? updatedUser.profile_image 
+          : `${updatedUser.profile_image}?t=${Date.now()}`;
+        setProfileImage(imageUrl);
+      }
       
       // Success handler after successful database update
       Alert.alert(

@@ -62,12 +62,22 @@ const SignUp = () => {
         user_type: role,
       };
 
-      await signUp(userData);
-      Alert.alert(
-        'Success', 
-        'Account created successfully!', 
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/sign-in/sign-in') }]
-      );
+      const result = await signUp(userData);
+      
+      // Show different messages based on verification status
+      if (result.verification_status === 'pending') {
+        Alert.alert(
+          'Account Created! 🎉', 
+          'Your account has been created successfully. Please wait for admin verification before you can access the app.',
+          [{ text: 'OK', onPress: () => router.replace('/(auth)/sign-in/sign-in') }]
+        );
+      } else {
+        Alert.alert(
+          'Success! 🎉', 
+          'Account created and verified successfully!', 
+          [{ text: 'OK', onPress: () => router.replace('/(auth)/sign-in/sign-in') }]
+        );
+      }
     } catch (error) {
       Alert.alert(
         'Registration Error',

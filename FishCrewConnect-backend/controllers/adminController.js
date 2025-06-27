@@ -142,53 +142,7 @@ exports.getUserStats = async (req, res) => {
 };
 
 // Get all users with pagination
-exports.getAllUsers = async (req, res) => {
-    try {
-        // Check if user is an admin
-        if (req.user.user_type !== 'admin') {
-            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
-        }
 
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit;
-        const search = req.query.search || '';
-        const userType = req.query.userType || '';
-
-        let whereClause = '';
-        let queryParams = [];
-
-        if (search) {
-            whereClause += ' WHERE (name LIKE ? OR email LIKE ?)';
-            queryParams.push(`%${search}%`, `%${search}%`);
-        }        if (userType && userType !== 'all') {
-            whereClause += whereClause ? ' AND user_type = ?' : ' WHERE user_type = ?';
-            queryParams.push(userType);
-        }
-
-        // Get total count
-        const [totalCount] = await db.query(`SELECT COUNT(*) as total FROM users${whereClause}`, queryParams);        // Get users with pagination
-        const [users] = await db.query(`
-            SELECT user_id, name, email, user_type, account_status as status, created_at
-            FROM users${whereClause}
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-        `, [...queryParams, limit, offset]);
-
-        res.json({
-            users,
-            pagination: {
-                currentPage: page,
-                totalPages: Math.ceil(totalCount[0].total / limit),
-                totalUsers: totalCount[0].total,
-                limit
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching all users:', error);
-        res.status(500).json({ message: 'Internal server error while fetching users' });
-    }
-};
 
 // Get user by ID
 exports.getUserById = async (req, res) => {
@@ -470,10 +424,7 @@ exports.updateJobStatus = async (req, res) => {
         if (req.user.user_type !== 'admin') {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }        const { id } = req.params;
-        const { status, reason } = req.body;        console.log(`Received job status update request:`);
-        console.log(`- Job ID: ${id}`);
-        console.log(`- Status: "${status}" (type: ${typeof status})`);
-        console.log(`- Reason: "${reason}"`);
+        const { status, reason } = req.body;
 
         // Validate status with explicit string comparison
         let isValidStatus = false;
@@ -481,15 +432,10 @@ exports.updateJobStatus = async (req, res) => {
         
         if (typeof status === 'string') {
             const trimmedStatus = status.trim();
-            console.log(`- Trimmed status: "${trimmedStatus}"`);
             isValidStatus = validStatusList.some(validStatus => validStatus === trimmedStatus);
         }
         
-        console.log(`Valid statuses: ${validStatusList.join(', ')}`);
-        console.log(`Status validation result: ${isValidStatus}`);
-        
         if (!isValidStatus) {
-            console.log(`❌ Status validation failed: "${status}" not in valid statuses`);
             return res.status(400).json({ 
                 message: `Invalid status. Valid statuses are: ${validStatusList.join(', ')}`,
                 received: status,
@@ -753,13 +699,13 @@ exports.getSystemSettings = async (req, res) => {
         // Get system statistics
         const [dbStats] = await db.query(`
             SELECT 
-                table_name,
-                table_rows,
-                data_length,
-                index_length
+                TABLE_NAME as table_name,
+                TABLE_ROWS as table_rows,
+                DATA_LENGTH as data_length,
+                INDEX_LENGTH as index_length
             FROM information_schema.tables 
-            WHERE table_schema = DATABASE()
-            ORDER BY data_length DESC
+            WHERE TABLE_SCHEMA = DATABASE()
+            ORDER BY DATA_LENGTH DESC
         `);
 
         // Get system settings from database
@@ -790,7 +736,7 @@ exports.getSystemSettings = async (req, res) => {
                 }
             }
 
-            // Categorize settings
+            // Categorize settings based on setting key patterns
             if (setting.setting_key.includes('enabled')) {
                 features[setting.setting_key] = value;
             } else if (setting.setting_key.includes('max_') || setting.setting_key.includes('limit')) {
@@ -798,6 +744,7 @@ exports.getSystemSettings = async (req, res) => {
             } else if (setting.setting_key.startsWith('platform_')) {
                 if (setting.setting_key === 'platform_name') platform.name = value;
                 if (setting.setting_key === 'platform_version') platform.version = value;
+                if (setting.setting_key === 'platform_environment') platform.environment = value;
             }
         });
 
@@ -1017,5 +964,217 @@ exports.getAdminActivityLog = async (req, res) => {
     } catch (error) {
         console.error('Error fetching admin activity log:', error);
         res.status(500).json({ message: 'Internal server error while fetching activity log' });
+    }
+};
+
+// User Verification Management
+exports.getPendingUsers = async (req, res) => {
+    try {
+        // Check if user is an admin
+        if (req.user.user_type !== 'admin') {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+
+        // Get all pending users with their verification requests
+        const [pendingUsers] = await db.query(`
+            SELECT 
+                u.user_id,
+                u.name,
+                u.email,
+                u.user_type,
+                u.contact_number,
+                u.organization_name,
+                u.created_at,
+                u.verification_status,
+                uvr.requested_at,
+                uvr.request_type,
+                uvr.user_message
+            FROM users u
+            LEFT JOIN user_verification_requests uvr ON u.user_id = uvr.user_id
+            WHERE u.verification_status = 'pending'
+            ORDER BY u.created_at DESC
+        `);
+
+        res.json({
+            success: true,
+            pending_users: pendingUsers,
+            count: pendingUsers.length
+        });
+
+    } catch (error) {
+        console.error('Get pending users error:', error);
+        res.status(500).json({ message: 'Server error fetching pending users.' });
+    }
+};
+
+exports.verifyUser = async (req, res) => {
+    try {
+        // Check if user is an admin
+        if (req.user.user_type !== 'admin') {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+
+        const { userId } = req.params;
+        const { notes } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required.' });
+        }
+
+        // Check if user exists and is pending
+        const [users] = await db.query(
+            'SELECT user_id, name, email, verification_status FROM users WHERE user_id = ?',
+            [userId]
+        );
+
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const user = users[0];
+
+        if (user.verification_status !== 'pending') {
+            return res.status(400).json({ 
+                message: `User is already ${user.verification_status}.` 
+            });
+        }
+
+        // Update user verification status
+        await db.query(
+            `UPDATE users 
+             SET verification_status = 'verified', 
+                 verified_by = ?, 
+                 verified_at = CURRENT_TIMESTAMP 
+             WHERE user_id = ?`,
+            [req.user.id, userId]
+        );
+
+        // Update verification request status
+        await db.query(
+            `UPDATE user_verification_requests 
+             SET status = 'verified', 
+                 processed_by = ?, 
+                 processed_at = CURRENT_TIMESTAMP,
+                 admin_notes = ?
+             WHERE user_id = ? AND status = 'pending'`,
+            [req.user.id, notes || null, userId]
+        );
+
+        res.json({
+            success: true,
+            message: `User ${user.name} has been successfully verified.`,
+            user: {
+                id: user.user_id,
+                name: user.name,
+                email: user.email,
+                verification_status: 'verified'
+            }
+        });
+
+    } catch (error) {
+        console.error('Verify user error:', error);
+        res.status(500).json({ message: 'Server error verifying user.' });
+    }
+};
+
+exports.getAllUsers = async (req, res) => {
+    try {
+        // Check if user is an admin
+        if (req.user.user_type !== 'admin') {
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+
+        const { status, user_type, search, page = 1, limit = 50 } = req.query;
+        
+        // Build query conditions
+        let whereConditions = [];
+        let queryParams = [];
+
+        if (status && ['pending', 'verified'].includes(status)) {
+            whereConditions.push('u.verification_status = ?');
+            queryParams.push(status);
+        }
+
+        if (user_type && ['admin', 'boat_owner', 'fisherman'].includes(user_type)) {
+            whereConditions.push('u.user_type = ?');
+            queryParams.push(user_type);
+        }
+
+        if (search && search.trim()) {
+            whereConditions.push('(u.name LIKE ? OR u.email LIKE ?)');
+            queryParams.push(`%${search.trim()}%`, `%${search.trim()}%`);
+        }
+
+        const whereClause = whereConditions.length > 0 
+            ? 'WHERE ' + whereConditions.join(' AND ') 
+            : '';
+
+        // Calculate offset for pagination
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+        queryParams.push(parseInt(limit), offset);
+
+        // Get users with verification info
+        const [users] = await db.query(`
+            SELECT 
+                u.user_id,
+                u.name,
+                u.email,
+                u.user_type,
+                u.contact_number,
+                u.organization_name,
+                u.created_at,
+                u.verification_status,
+                u.verified_at,
+                u.account_status as status,
+                verifier.name as verified_by_name
+            FROM users u
+            LEFT JOIN users verifier ON u.verified_by = verifier.user_id
+            ${whereClause}
+            ORDER BY u.created_at DESC
+            LIMIT ? OFFSET ?
+        `, queryParams);
+
+        // Get total count for pagination
+        const countParams = queryParams.slice(0, -2); // Remove limit and offset
+        const [countResult] = await db.query(`
+            SELECT COUNT(*) as total
+            FROM users u
+            ${whereClause}
+        `, countParams);
+
+        // Get total counts by type and verification status for filters
+        const [typeCounts] = await db.query(`
+            SELECT 
+                COUNT(*) as all_users,
+                SUM(CASE WHEN user_type = 'fisherman' THEN 1 ELSE 0 END) as fisherman,
+                SUM(CASE WHEN user_type = 'boat_owner' THEN 1 ELSE 0 END) as boat_owner,
+                SUM(CASE WHEN user_type = 'admin' THEN 1 ELSE 0 END) as admin,
+                SUM(CASE WHEN verification_status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN verification_status = 'verified' THEN 1 ELSE 0 END) as verified
+            FROM users
+        `);
+
+        res.json({
+            success: true,
+            users: users,
+            pagination: {
+                current_page: parseInt(page),
+                limit: parseInt(limit),
+                total: countResult[0].total,
+                total_pages: Math.ceil(countResult[0].total / parseInt(limit))
+            },
+            counts: {
+                all: typeCounts[0].all_users,
+                fisherman: typeCounts[0].fisherman,
+                boat_owner: typeCounts[0].boat_owner,
+                admin: typeCounts[0].admin,
+                pending: typeCounts[0].pending,
+                verified: typeCounts[0].verified
+            }
+        });
+
+    } catch (error) {
+        console.error('Get all users error:', error);
+        res.status(500).json({ message: 'Server error fetching users.' });
     }
 };

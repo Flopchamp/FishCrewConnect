@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../config/db'); // MySQL connection pool
+const emailService = require('../services/emailService'); // Email service
 require('dotenv').config(); // To access JWT_SECRET from .env
 
 // Signup controller
@@ -47,7 +48,7 @@ exports.signup = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 
-        // Insert new user
+        // Insert new user with verification status
         // Note: firebase_uid is not handled here yet, will be null by default as per schema
         const newUser = {
             name,
@@ -55,18 +56,32 @@ exports.signup = async (req, res) => {
             password_hash,
             user_type,
             contact_number: contact_number || null,
-            organization_name: organization_name || null
+            organization_name: organization_name || null,
+            verification_status: user_type === 'admin' ? 'verified' : 'pending' // Auto-verify admins
         };
 
         const [result] = await db.query('INSERT INTO users SET ?', newUser);
 
+        // Create verification request for non-admin users
+        if (user_type !== 'admin') {
+            await db.query(
+                'INSERT INTO user_verification_requests (user_id, request_type) VALUES (?, ?)',
+                [result.insertId, 'registration']
+            );
+        }
+
         // Respond with success (excluding password_hash)
+        const responseMessage = user_type === 'admin' 
+            ? 'Admin account created and verified successfully!'
+            : 'Account created successfully! Your account is pending admin verification.';
+
         res.status(201).json({
-            message: 'User registered successfully!',
+            message: responseMessage,
             userId: result.insertId,
             name,
             email,
-            user_type
+            user_type,
+            verification_status: user_type === 'admin' ? 'verified' : 'pending'
         });
 
     } catch (error) {
@@ -106,13 +121,22 @@ exports.signin = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials.' });
         }
 
-        // User matched, create JWT payload
+        // Check verification status
+        if (user.verification_status === 'pending') {
+            return res.status(403).json({ 
+                message: 'Your account is pending admin verification. Please wait for approval.',
+                verification_status: 'pending'
+            });
+        }
+
+        // User matched and verified, create JWT payload
         const payload = {
             user: {
                 id: user.user_id,
                 email: user.email,
                 user_type: user.user_type,
-                name: user.name
+                name: user.name,
+                verification_status: user.verification_status
             }
         };
 
@@ -131,7 +155,8 @@ exports.signin = async (req, res) => {
                         name: user.name,
                         user_type: user.user_type,
                         contact_number: user.contact_number,
-                        organization_name: user.organization_name
+                        organization_name: user.organization_name,
+                        verification_status: user.verification_status
                     }
                 });
             }
@@ -234,6 +259,12 @@ exports.forgotPassword = async (req, res) => {
         return res.status(400).json({ message: 'Email is required.' });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
     try {
         // Check if user exists
         const [users] = await db.query('SELECT user_id, email, name FROM users WHERE email = ?', [email]);
@@ -257,14 +288,26 @@ exports.forgotPassword = async (req, res) => {
             [user.user_id, resetToken, resetTokenExpiry, resetToken, resetTokenExpiry]
         );
 
-        // In a real app, you would send an email here
-        // For now, we'll return the token for testing purposes
-        console.log(`Password reset token for ${email}: ${resetToken}`);
-        
+        // Send password reset email
+        try {
+            const emailSent = await emailService.sendPasswordResetEmail(
+                user.email,
+                user.name,
+                resetToken
+            );
+
+            if (emailSent) {
+                console.log(`✅ Password reset email sent to ${email}`);
+            } else {
+                console.log(`❌ Failed to send password reset email to ${email}`);
+            }
+        } catch (emailError) {
+            console.error('Email service error:', emailError);
+        }
+
+        // Always return success message for security (don't reveal if email failed to send)
         res.status(200).json({ 
-            message: 'If an account with that email exists, a password reset link has been sent.',
-            // Remove this in production - only for testing
-            resetToken: resetToken
+            message: 'If an account with that email exists, a password reset link has been sent to your email address. Please check your inbox and spam folder.'
         });
 
     } catch (error) {
@@ -322,4 +365,219 @@ exports.resetPassword = async (req, res) => {
     }
 };
 
-// updateUserProfile controller
+// @desc    Check if email exists
+// @route   POST /api/auth/check-email
+// @access  Public
+exports.checkEmail = async (req, res) => {
+    const { email } = req.body;
+
+    // Basic validation
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
+    try {
+        // Check if user exists
+        const [users] = await db.query('SELECT user_id, email, name FROM users WHERE email = ?', [email]);
+        
+        if (users.length > 0) {
+            // Email exists
+            res.status(200).json({ 
+                exists: true,
+                message: 'Email found in our system.',
+                user: {
+                    email: users[0].email,
+                    name: users[0].name
+                }
+            });
+        } else {
+            // Email doesn't exist
+            res.status(200).json({ 
+                exists: false,
+                message: 'No account found with this email address.'
+            });
+        }
+
+    } catch (error) {
+        console.error('Check email error:', error);
+        res.status(500).json({ message: 'Server error during email verification.' });
+    }
+};
+
+// @desc    Reset password directly with email (no token)
+// @route   POST /api/auth/reset-password-direct
+// @access  Public
+exports.resetPasswordDirect = async (req, res) => {
+    const { email, newPassword } = req.body;
+
+    // Basic validation
+    if (!email || !newPassword) {
+        return res.status(400).json({ message: 'Email and new password are required.' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
+    try {
+        // Check if user exists
+        const [users] = await db.query('SELECT user_id, email FROM users WHERE email = ?', [email]);
+
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found with this email address.' });
+        }
+
+        const user = users[0];
+
+        // Hash the new password
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update the password in database
+        await db.query(
+            'UPDATE users SET password_hash = ? WHERE user_id = ?',
+            [hashedPassword, user.user_id]
+        );
+
+        // Clean up any existing password reset tokens for this user
+        await db.query('DELETE FROM password_resets WHERE user_id = ?', [user.user_id]);
+
+        console.log(`✅ Password successfully reset for user ${email}`);
+
+        res.status(200).json({ 
+            message: 'Password has been successfully reset. You can now sign in with your new password.'
+        });
+
+    } catch (error) {
+        console.error('Reset password direct error:', error);
+        res.status(500).json({ message: 'Server error during password reset.' });
+    }
+};
+
+// @desc    Send OTP for password reset
+// @route   POST /api/auth/send-otp
+// @access  Public
+exports.sendOTP = async (req, res) => {
+    const { email } = req.body;
+
+    // Basic validation
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
+    try {
+        // Check if user exists
+        const [users] = await db.query('SELECT user_id, email, name FROM users WHERE email = ?', [email]);
+        
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'No account found with this email address.' });
+        }
+
+        const user = users[0];
+
+        // Generate 6-digit OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
+        // Store OTP in database (replace any existing OTP for this email)
+        await db.query(
+            'INSERT INTO otp_verifications (email, otp_code, expires_at, verified) VALUES (?, ?, ?, false) ON DUPLICATE KEY UPDATE otp_code = ?, expires_at = ?, verified = false',
+            [email, otpCode, expiresAt, otpCode, expiresAt]
+        );
+
+        // Send OTP via email
+        try {
+            const emailService = require('../services/emailService');
+            const emailSent = await emailService.sendOTPEmail(email, user.name, otpCode);
+
+            if (emailSent) {
+                console.log(`✅ OTP sent successfully to ${email}`);
+            } else {
+                console.log(`❌ Failed to send OTP to ${email}`);
+            }
+        } catch (emailError) {
+            console.error('OTP email service error:', emailError);
+        }
+
+        res.status(200).json({ 
+            success: true,
+            message: 'OTP has been sent to your email address. Please check your inbox.',
+            email: email
+        });
+
+    } catch (error) {
+        console.error('Send OTP error:', error);
+        res.status(500).json({ message: 'Server error during OTP generation.' });
+    }
+};
+
+// @desc    Verify OTP for password reset
+// @route   POST /api/auth/verify-otp
+// @access  Public
+exports.verifyOTP = async (req, res) => {
+    const { email, otp } = req.body;
+
+    // Basic validation
+    if (!email || !otp) {
+        return res.status(400).json({ message: 'Email and OTP are required.' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Please enter a valid email address.' });
+    }
+
+    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+        return res.status(400).json({ message: 'OTP must be a 6-digit number.' });
+    }
+
+    try {
+        // Find valid OTP record
+        const [otpRecords] = await db.query(
+            'SELECT * FROM otp_verifications WHERE email = ? AND otp_code = ? AND expires_at > NOW() AND verified = false',
+            [email, otp]
+        );
+
+        if (otpRecords.length === 0) {
+            return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
+        }
+
+        // Mark OTP as verified
+        await db.query(
+            'UPDATE otp_verifications SET verified = true WHERE email = ? AND otp_code = ?',
+            [email, otp]
+        );
+
+        console.log(`✅ OTP verified successfully for ${email}`);
+
+        res.status(200).json({ 
+            success: true,
+            message: 'OTP verified successfully. You can now reset your password.',
+            verified: true,
+            email: email
+        });
+
+    } catch (error) {
+        console.error('Verify OTP error:', error);
+        res.status(500).json({ message: 'Server error during OTP verification.' });
+    }
+};

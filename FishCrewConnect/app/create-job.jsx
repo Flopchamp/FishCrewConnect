@@ -85,7 +85,7 @@ const CreateJobScreen = () => {
           label="Location *"
           value={jobData.location}
           onChangeText={(text) => handleInputChange('location', text)}
-          placeholder="e.g., Miami Harbor, Florida"
+          placeholder="e.g., kisumu"
           leftIcon="location-outline"
         />
         
@@ -93,7 +93,7 @@ const CreateJobScreen = () => {
           label="Payment Details"
           value={jobData.payment_details}
           onChangeText={(text) => handleInputChange('payment_details', text)}
-          placeholder="e.g., $200 per day plus share of catch"
+          placeholder="e.g., ksh 200 per day plus share of catch"
           leftIcon="cash-outline"
         />
         
