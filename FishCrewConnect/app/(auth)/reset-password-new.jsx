@@ -60,7 +60,7 @@ const ResetPassword = () => {
         [
           {
             text: 'Sign In',
-            onPress: () => router.replace('/(auth)/sign-in/sign-in')
+            onPress: () => router.replace('/(auth)/signin')
           }
         ]
       );

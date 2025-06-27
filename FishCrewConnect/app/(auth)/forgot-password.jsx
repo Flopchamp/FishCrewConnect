@@ -34,25 +34,41 @@ const ForgotPassword = () => {
     try {
       setIsSubmitting(true);
       
-      const response = await authAPI.forgotPassword(email.trim());
+      // Check if email exists in the system
+      const response = await authAPI.checkEmailExists(email.trim());
 
-      Alert.alert(
-          'Success', 
-          response.message,
-          [
-            { 
-              text: 'OK', 
-              onPress: () => {
-                // If we have a reset token (for testing), navigate to reset screen
-                if (response.resetToken) {
-                  router.push(`/(auth)/reset-password?token=${response.resetToken}&email=${email.trim()}`);
-                } else {
-                  router.back();
-                }
+      if (response.exists) {
+        // Email exists, send OTP
+        const otpResponse = await authAPI.sendOTP(email.trim());
+        
+        if (otpResponse.success) {
+          Alert.alert(
+            'OTP Sent! 📧', 
+            'A 6-digit verification code has been sent to your email. Please check your inbox.',
+            [
+              { 
+                text: 'Continue', 
+                onPress: () => router.push(`/(auth)/verify-otp?email=${encodeURIComponent(email.trim())}`)
               }
+            ]
+          );
+        } else {
+          Alert.alert('Error', 'Failed to send OTP. Please try again.');
+        }
+      } else {
+        // Email doesn't exist
+        Alert.alert(
+          'Email Not Found', 
+          'No account found with this email address. Please check your email or create a new account.',
+          [
+            { text: 'Try Again', style: 'default' },
+            { 
+              text: 'Sign Up', 
+              onPress: () => router.push('/(auth)/signup')
             }
           ]
         );
+      }
       
     } catch (error) {
       console.error('Forgot password error:', error);
@@ -72,7 +88,7 @@ const ForgotPassword = () => {
       
       <Text style={styles.title}>Forgot Password?</Text>
       <Text style={styles.subtitle}>
-        No worries! Enter your email address and we&apos;ll send you a link to reset your password.
+        Enter your email address to receive a verification code for password reset.
       </Text>
 
       <TextInput
@@ -93,7 +109,7 @@ const ForgotPassword = () => {
         {isSubmitting ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Text style={styles.resetButtonText}>Send Reset Link</Text>
+          <Text style={styles.resetButtonText}>Send Verification Code</Text>
         )}
       </TouchableOpacity>
 
