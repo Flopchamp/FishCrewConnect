@@ -1,0 +1,2760 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Modal,
+  Share,
+  RefreshControl
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../context/AuthContext';
+import { adminAPI } from '../../services/api';
+import SafeScreenWrapper from '../../components/SafeScreenWrapper';
+import HeaderBox from '../../components/HeaderBox';
+import * as FileSystem from 'expo-file-system';
+
+const AdminPaymentManagement = () => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState('overview');
+  
+  // Payment Statistics
+  const [platformStats, setPlatformStats] = useState({
+    totalRevenue: 0,
+    totalCommissions: 0,
+    totalTransactions: 0,
+    completedPayments: 0,
+    pendingPayments: 0,
+    failedPayments: 0,
+    disputedPayments: 0,
+    averageTransactionValue: 0,
+    monthlyGrowth: 0,
+    commissionRate: 0.05, 
+    totalPaymentVolume: 0,
+    totalPlatformCommission: 0,
+    firstPaymentDate: null,
+    lastPaymentDate: null
+  });
+
+  // All Payments Data
+  const [allPayments, setAllPayments] = useState([]);
+  const [filteredPayments, setFilteredPayments] = useState([]);
+  const [paymentFilters, setPaymentFilters] = useState({
+    status: 'all',
+    dateRange: '30',
+    userType: 'all',
+    searchQuery: ''
+  });
+
+  // Analytics Data
+  const [commissionAnalytics, setCommissionAnalytics] = useState(null);
+  const [userPaymentAnalytics, setUserPaymentAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  
+
+  // Dispute Manage
+  
+
+  // Refund Management
+  const [refundModal, setRefundModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+
+  // Platform Configuration
+  const [configModal, setConfigModal] = useState(false);
+  const [editingConfig, setEditingConfig] = useState(null); // Track which config is being edited
+  const [editValue, setEditValue] = useState(''); // Current edit value
+  const [platformConfig, setPlatformConfig] = useState({
+    commissionRate: 0.05,
+    minimumPayment: 100,
+    maximumPayment: 100000,
+    autoApproveLimit: 10000,
+    disputeTimeLimit: 30,
+    refundTimeLimit: 7
+  });
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: 'analytics' },
+    { id: 'reports', label: 'Reports', icon: 'document-text' },
+    { id: 'config', label: 'Settings', icon: 'settings' }
+  ];
+
+  // Fetch all admin payment data
+  const fetchAdminPaymentData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all admin payment data
+      const [paymentsResponse,  configResponse, analyticsResponse] = await Promise.all([
+        fetchAllPlatformPayments(),
+        
+        fetchPlatformConfiguration(),
+        fetchPaymentAnalytics()
+      ]);
+
+      // Process platform statistics
+      const stats = calculatePlatformStatistics(paymentsResponse, analyticsResponse.paymentStats);
+      setPlatformStats(stats);
+      
+      // Set payments data
+      setAllPayments(paymentsResponse);
+      setFilteredPayments(paymentsResponse);
+      
+      
+      // Set configuration
+      setPlatformConfig(configResponse);
+      
+      // Generate chart data from analytics or payments
+    
+      
+    } catch (error) {
+      console.error('Error fetching admin payment data:', error);
+      Alert.alert('Error', 'Failed to load payment data. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [fetchAllPlatformPayments, fetchPlatformConfiguration, fetchPaymentAnalytics]); // Add dependencies
+
+  // API functions for admin payment management
+  const fetchAllPlatformPayments = useCallback(async () => {
+    try {
+      const params = {
+        page: 1,
+        limit: 1000, // Get all payments for comprehensive analysis
+        status: paymentFilters.status !== 'all' ? paymentFilters.status : undefined,
+        date_range: paymentFilters.dateRange !== 'all' ? paymentFilters.dateRange : undefined,
+        search: paymentFilters.searchQuery || undefined
+      };
+      
+      console.log('Fetching platform payments with params:', params);
+      const response = await adminAPI.payments.getAllPlatformPayments(params);
+      return response.payments || response || [];
+    } catch (error) {
+      console.error('Error fetching platform payments:', error);
+      // Show user-friendly error but don't fall back to mock data
+      Alert.alert('Error', 'Failed to load payment data. Please check your connection and try again.');
+      return [];
+    }
+  }, [paymentFilters.status, paymentFilters.dateRange, paymentFilters.searchQuery]);
+
+
+
+  const fetchPlatformConfiguration = useCallback(async () => {
+    try {
+      console.log('Fetching platform configuration');
+      const response = await adminAPI.payments.getPlatformConfig();
+      return response || {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    } catch (error) {
+      console.error('Error fetching platform config:', error);
+      // Return default config for first-time setup
+      return {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    }
+  }, []);
+
+  // Fetch payment analytics and statistics
+  const fetchPaymentAnalytics = useCallback(async () => {
+    try {
+      console.log('Fetching payment analytics');
+      const [analytics, commissionData, dashboardStats] = await Promise.all([
+        adminAPI.payments.getPaymentAnalytics({ months: 12 }),
+        adminAPI.payments.getCommissionAnalytics({ months: 12 }),
+        adminAPI.getDashboardStats() // Fetch admin dashboard stats that include payment_statistics
+      ]);
+      
+      return { 
+        analytics, 
+        commissionData, 
+        paymentStats: dashboardStats?.payments || null 
+      };
+    } catch (error) {
+      console.error('Error fetching payment analytics:', error);
+      return { analytics: null, commissionData: null, paymentStats: null };
+    }
+  }, []);
+
+  const calculatePlatformStatistics = (payments, paymentStats = null) => {
+    // If we have payment statistics from the backend, use them
+    if (paymentStats) {
+      return {
+        totalRevenue: parseFloat(paymentStats.total_payment_volume || 0),
+        totalCommissions: parseFloat(paymentStats.total_platform_commission || 0),
+        totalTransactions: paymentStats.total_payments || 0,
+        completedPayments: paymentStats.completed_payments || 0,
+        pendingPayments: paymentStats.pending_payments || 0,
+        failedPayments: paymentStats.failed_payments || 0,
+        disputedPayments: paymentStats.disputed_payments || 0, // Now available in payment_statistics
+        averageTransactionValue: parseFloat(paymentStats.average_payment_amount || 0),
+        monthlyGrowth: 12.5, // Mock growth percentage - could be calculated
+        commissionRate: 0.15,
+        totalPaymentVolume: parseFloat(paymentStats.total_payment_volume || 0),
+        totalPlatformCommission: parseFloat(paymentStats.total_platform_commission || 0),
+        firstPaymentDate: paymentStats.first_payment_date,
+        lastPaymentDate: paymentStats.last_payment_date
+      };
+    }
+    
+    // Fallback to calculating from payments array
+    const completed = payments.filter(p => p.status === 'completed');
+    const pending = payments.filter(p => p.status === 'pending');
+    const failed = payments.filter(p => p.status === 'failed');
+    const disputed = payments.filter(p => p.status === 'disputed');
+
+    const totalRevenue = completed.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+    const totalCommissions = completed.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+    const averageTransaction = completed.length > 0 ? totalRevenue / completed.length : 0;
+
+    return {
+      totalRevenue,
+      totalCommissions,
+      totalTransactions: payments.length,
+      completedPayments: completed.length,
+      pendingPayments: pending.length,
+      failedPayments: failed.length,
+      disputedPayments: disputed.length,
+      averageTransactionValue: averageTransaction,
+      monthlyGrowth: 12.5, // Mock growth percentage
+      commissionRate: 0.05,
+      totalPaymentVolume: totalRevenue,
+      totalPlatformCommission: totalCommissions,
+      firstPaymentDate: null,
+      lastPaymentDate: null
+    };
+  };
+
+  const generateChartData = useCallback((payments) => {
+    // Generate revenue chart data (last 12 months)
+    const monthlyRevenue = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = date.toISOString().substring(0, 7);
+      
+      const monthPayments = payments.filter(p => 
+        p.created_at?.startsWith(monthKey) && p.status === 'completed'
+      );
+      
+      const revenue = monthPayments.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+      const commission = monthPayments.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+      
+      monthlyRevenue.push({
+        month: date.toLocaleDateString('en', { month: 'short' }),
+        revenue,
+        commission
+      });
+    }
+    
+    return monthlyRevenue;
+  }, []);
+
+
+  // Filter payments based on current filters
+  const applyPaymentFilters = useCallback(() => {
+    let filtered = [...allPayments];
+
+    // Filter by date range
+    const daysAgo = parseInt(paymentFilters.dateRange);
+    if (daysAgo > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+    }
+
+    setFilteredPayments(filtered);
+  }, [allPayments, paymentFilters]);
+
+  useEffect(() => {
+    fetchAdminPaymentData();
+  }, [fetchAdminPaymentData]);
+
+  useEffect(() => {
+    applyPaymentFilters();
+  }, [applyPaymentFilters]);
+
+  // Handle payment refund
+  const handleRefundPayment = async () => {
+    if (!selectedPayment || !refundAmount || !refundReason) {
+      Alert.alert('Error', 'Please fill in all refund details');
+      return;
+    }
+
+    try {
+      // Call admin API to process refund
+      await adminAPI.payments.processRefund(selectedPayment.id, {
+        amount: parseFloat(refundAmount),
+        reason: refundReason
+      });
+
+      Alert.alert('Success', 'Refund has been processed successfully');
+      setRefundModal(false);
+      setSelectedPayment(null);
+      setRefundAmount('');
+      setRefundReason('');
+      fetchAdminPaymentData();
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      Alert.alert('Error', error.message || 'Failed to process refund');
+    }
+  };
+
+
+
+  // Update platform configuration
+  const handleUpdateConfiguration = async () => {
+    try {
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig(platformConfig);
+
+      Alert.alert('Success', 'Platform configuration updated successfully');
+      setConfigModal(false);
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Handle opening individual config edit
+  const handleEditConfig = (configKey) => {
+    setEditingConfig(configKey);
+    
+    // Set the current value based on the config key
+    let currentValue = platformConfig[configKey];
+    if (configKey === 'commissionRate') {
+      currentValue = (currentValue * 100).toString(); // Convert to percentage
+    } else {
+      currentValue = currentValue.toString();
+    }
+    
+    setEditValue(currentValue);
+    setConfigModal(true);
+  };
+
+  // Handle updating individual config
+  const handleUpdateIndividualConfig = async () => {
+    try {
+      if (!editingConfig || !editValue.trim()) {
+        Alert.alert('Error', 'Please enter a valid value');
+        return;
+      }
+
+      let parsedValue = parseFloat(editValue);
+      if (isNaN(parsedValue) || parsedValue < 0) {
+        Alert.alert('Error', 'Please enter a valid positive number');
+        return;
+      }
+
+      // Convert percentage back to decimal for commission rate
+      if (editingConfig === 'commissionRate') {
+        if (parsedValue > 100) {
+          Alert.alert('Error', 'Commission rate cannot exceed 100%');
+          return;
+        }
+        parsedValue = parsedValue / 100;
+      }
+
+      // Update the specific config
+      const updatedConfig = {
+        ...platformConfig,
+        [editingConfig]: parsedValue
+      };
+
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig({ [editingConfig]: parsedValue });
+
+      // Update local state
+      setPlatformConfig(updatedConfig);
+
+      Alert.alert('Success', `${getConfigDisplayName(editingConfig)} updated successfully`);
+      setConfigModal(false);
+      setEditingConfig(null);
+      setEditValue('');
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Get display name for config keys
+  const getConfigDisplayName = (configKey) => {
+    const displayNames = {
+      commissionRate: 'Commission Rate',
+      minimumPayment: 'Minimum Payment',
+      maximumPayment: 'Maximum Payment',
+      autoApproveLimit: 'Auto-Approve Limit',
+      disputeTimeLimit: 'Dispute Time Limit',
+      refundTimeLimit: 'Refund Time Limit'
+    };
+    return displayNames[configKey] || configKey;
+  };
+
+  // Get input placeholder for config keys
+  const getConfigPlaceholder = (configKey) => {
+    const placeholders = {
+      commissionRate: 'Enter commission rate (e.g., 5.0)',
+      minimumPayment: 'Enter minimum payment amount',
+      maximumPayment: 'Enter maximum payment amount',
+      autoApproveLimit: 'Enter auto-approve limit',
+      disputeTimeLimit: 'Enter dispute time limit (days)',
+      refundTimeLimit: 'Enter refund time limit (days)'
+    };
+    return placeholders[configKey] || 'Enter value';
+  };
+
+  // Get input unit for config keys
+  const getConfigUnit = (configKey) => {
+    const units = {
+      commissionRate: '%',
+      minimumPayment: 'KES',
+      maximumPayment: 'KES',
+      autoApproveLimit: 'KES',
+      disputeTimeLimit: 'days',
+      refundTimeLimit: 'days'
+    };
+    return units[configKey] || '';
+  };
+
+  // Fetch all admin payment data
+  const fetchAdminPaymentData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all admin payment data
+      const [paymentsResponse,  configResponse, analyticsResponse] = await Promise.all([
+        fetchAllPlatformPayments(),
+        
+        fetchPlatformConfiguration(),
+        fetchPaymentAnalytics()
+      ]);
+
+      // Process platform statistics
+      const stats = calculatePlatformStatistics(paymentsResponse, analyticsResponse.paymentStats);
+      setPlatformStats(stats);
+      
+      // Set payments data
+      setAllPayments(paymentsResponse);
+      setFilteredPayments(paymentsResponse);
+      
+      
+      // Set configuration
+      setPlatformConfig(configResponse);
+      
+      // Generate chart data from analytics or payments
+    
+      
+    } catch (error) {
+      console.error('Error fetching admin payment data:', error);
+      Alert.alert('Error', 'Failed to load payment data. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [fetchAllPlatformPayments, fetchPlatformConfiguration, fetchPaymentAnalytics]); // Add dependencies
+
+  // API functions for admin payment management
+  const fetchAllPlatformPayments = useCallback(async () => {
+    try {
+      const params = {
+        page: 1,
+        limit: 1000, // Get all payments for comprehensive analysis
+        status: paymentFilters.status !== 'all' ? paymentFilters.status : undefined,
+        date_range: paymentFilters.dateRange !== 'all' ? paymentFilters.dateRange : undefined,
+        search: paymentFilters.searchQuery || undefined
+      };
+      
+      console.log('Fetching platform payments with params:', params);
+      const response = await adminAPI.payments.getAllPlatformPayments(params);
+      return response.payments || response || [];
+    } catch (error) {
+      console.error('Error fetching platform payments:', error);
+      // Show user-friendly error but don't fall back to mock data
+      Alert.alert('Error', 'Failed to load payment data. Please check your connection and try again.');
+      return [];
+    }
+  }, [paymentFilters.status, paymentFilters.dateRange, paymentFilters.searchQuery]);
+
+
+
+  const fetchPlatformConfiguration = useCallback(async () => {
+    try {
+      console.log('Fetching platform configuration');
+      const response = await adminAPI.payments.getPlatformConfig();
+      return response || {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    } catch (error) {
+      console.error('Error fetching platform config:', error);
+      // Return default config for first-time setup
+      return {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    }
+  }, []);
+
+  // Fetch payment analytics and statistics
+  const fetchPaymentAnalytics = useCallback(async () => {
+    try {
+      console.log('Fetching payment analytics');
+      const [analytics, commissionData, dashboardStats] = await Promise.all([
+        adminAPI.payments.getPaymentAnalytics({ months: 12 }),
+        adminAPI.payments.getCommissionAnalytics({ months: 12 }),
+        adminAPI.getDashboardStats() // Fetch admin dashboard stats that include payment_statistics
+      ]);
+      
+      return { 
+        analytics, 
+        commissionData, 
+        paymentStats: dashboardStats?.payments || null 
+      };
+    } catch (error) {
+      console.error('Error fetching payment analytics:', error);
+      return { analytics: null, commissionData: null, paymentStats: null };
+    }
+  }, []);
+
+  const calculatePlatformStatistics = (payments, paymentStats = null) => {
+    // If we have payment statistics from the backend, use them
+    if (paymentStats) {
+      return {
+        totalRevenue: parseFloat(paymentStats.total_payment_volume || 0),
+        totalCommissions: parseFloat(paymentStats.total_platform_commission || 0),
+        totalTransactions: paymentStats.total_payments || 0,
+        completedPayments: paymentStats.completed_payments || 0,
+        pendingPayments: paymentStats.pending_payments || 0,
+        failedPayments: paymentStats.failed_payments || 0,
+        disputedPayments: paymentStats.disputed_payments || 0, // Now available in payment_statistics
+        averageTransactionValue: parseFloat(paymentStats.average_payment_amount || 0),
+        monthlyGrowth: 12.5, // Mock growth percentage - could be calculated
+        commissionRate: 0.15,
+        totalPaymentVolume: parseFloat(paymentStats.total_payment_volume || 0),
+        totalPlatformCommission: parseFloat(paymentStats.total_platform_commission || 0),
+        firstPaymentDate: paymentStats.first_payment_date,
+        lastPaymentDate: paymentStats.last_payment_date
+      };
+    }
+    
+    // Fallback to calculating from payments array
+    const completed = payments.filter(p => p.status === 'completed');
+    const pending = payments.filter(p => p.status === 'pending');
+    const failed = payments.filter(p => p.status === 'failed');
+    const disputed = payments.filter(p => p.status === 'disputed');
+
+    const totalRevenue = completed.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+    const totalCommissions = completed.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+    const averageTransaction = completed.length > 0 ? totalRevenue / completed.length : 0;
+
+    return {
+      totalRevenue,
+      totalCommissions,
+      totalTransactions: payments.length,
+      completedPayments: completed.length,
+      pendingPayments: pending.length,
+      failedPayments: failed.length,
+      disputedPayments: disputed.length,
+      averageTransactionValue: averageTransaction,
+      monthlyGrowth: 12.5, // Mock growth percentage
+      commissionRate: 0.05,
+      totalPaymentVolume: totalRevenue,
+      totalPlatformCommission: totalCommissions,
+      firstPaymentDate: null,
+      lastPaymentDate: null
+    };
+  };
+
+  const generateChartData = useCallback((payments) => {
+    // Generate revenue chart data (last 12 months)
+    const monthlyRevenue = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = date.toISOString().substring(0, 7);
+      
+      const monthPayments = payments.filter(p => 
+        p.created_at?.startsWith(monthKey) && p.status === 'completed'
+      );
+      
+      const revenue = monthPayments.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+      const commission = monthPayments.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+      
+      monthlyRevenue.push({
+        month: date.toLocaleDateString('en', { month: 'short' }),
+        revenue,
+        commission
+      });
+    }
+    
+    return monthlyRevenue;
+  }, []);
+
+
+  // Filter payments based on current filters
+  const applyPaymentFilters = useCallback(() => {
+    let filtered = [...allPayments];
+
+    // Filter by date range
+    const daysAgo = parseInt(paymentFilters.dateRange);
+    if (daysAgo > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+    }
+
+    setFilteredPayments(filtered);
+  }, [allPayments, paymentFilters]);
+
+  useEffect(() => {
+    fetchAdminPaymentData();
+  }, [fetchAdminPaymentData]);
+
+  useEffect(() => {
+    applyPaymentFilters();
+  }, [applyPaymentFilters]);
+
+  // Handle payment refund
+  const handleRefundPayment = async () => {
+    if (!selectedPayment || !refundAmount || !refundReason) {
+      Alert.alert('Error', 'Please fill in all refund details');
+      return;
+    }
+
+    try {
+      // Call admin API to process refund
+      await adminAPI.payments.processRefund(selectedPayment.id, {
+        amount: parseFloat(refundAmount),
+        reason: refundReason
+      });
+
+      Alert.alert('Success', 'Refund has been processed successfully');
+      setRefundModal(false);
+      setSelectedPayment(null);
+      setRefundAmount('');
+      setRefundReason('');
+      fetchAdminPaymentData();
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      Alert.alert('Error', error.message || 'Failed to process refund');
+    }
+  };
+
+
+
+  // Update platform configuration
+  const handleUpdateConfiguration = async () => {
+    try {
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig(platformConfig);
+
+      Alert.alert('Success', 'Platform configuration updated successfully');
+      setConfigModal(false);
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Handle opening individual config edit
+  const handleEditConfig = (configKey) => {
+    setEditingConfig(configKey);
+    
+    // Set the current value based on the config key
+    let currentValue = platformConfig[configKey];
+    if (configKey === 'commissionRate') {
+      currentValue = (currentValue * 100).toString(); // Convert to percentage
+    } else {
+      currentValue = currentValue.toString();
+    }
+    
+    setEditValue(currentValue);
+    setConfigModal(true);
+  };
+
+  // Handle updating individual config
+  const handleUpdateIndividualConfig = async () => {
+    try {
+      if (!editingConfig || !editValue.trim()) {
+        Alert.alert('Error', 'Please enter a valid value');
+        return;
+      }
+
+      let parsedValue = parseFloat(editValue);
+      if (isNaN(parsedValue) || parsedValue < 0) {
+        Alert.alert('Error', 'Please enter a valid positive number');
+        return;
+      }
+
+      // Convert percentage back to decimal for commission rate
+      if (editingConfig === 'commissionRate') {
+        if (parsedValue > 100) {
+          Alert.alert('Error', 'Commission rate cannot exceed 100%');
+          return;
+        }
+        parsedValue = parsedValue / 100;
+      }
+
+      // Update the specific config
+      const updatedConfig = {
+        ...platformConfig,
+        [editingConfig]: parsedValue
+      };
+
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig({ [editingConfig]: parsedValue });
+
+      // Update local state
+      setPlatformConfig(updatedConfig);
+
+      Alert.alert('Success', `${getConfigDisplayName(editingConfig)} updated successfully`);
+      setConfigModal(false);
+      setEditingConfig(null);
+      setEditValue('');
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Get display name for config keys
+  const getConfigDisplayName = (configKey) => {
+    const displayNames = {
+      commissionRate: 'Commission Rate',
+      minimumPayment: 'Minimum Payment',
+      maximumPayment: 'Maximum Payment',
+      autoApproveLimit: 'Auto-Approve Limit',
+      disputeTimeLimit: 'Dispute Time Limit',
+      refundTimeLimit: 'Refund Time Limit'
+    };
+    return displayNames[configKey] || configKey;
+  };
+
+  // Get input placeholder for config keys
+  const getConfigPlaceholder = (configKey) => {
+    const placeholders = {
+      commissionRate: 'Enter commission rate (e.g., 5.0)',
+      minimumPayment: 'Enter minimum payment amount',
+      maximumPayment: 'Enter maximum payment amount',
+      autoApproveLimit: 'Enter auto-approve limit',
+      disputeTimeLimit: 'Enter dispute time limit (days)',
+      refundTimeLimit: 'Enter refund time limit (days)'
+    };
+    return placeholders[configKey] || 'Enter value';
+  };
+
+  // Get input unit for config keys
+  const getConfigUnit = (configKey) => {
+    const units = {
+      commissionRate: '%',
+      minimumPayment: 'KES',
+      maximumPayment: 'KES',
+      autoApproveLimit: 'KES',
+      disputeTimeLimit: 'days',
+      refundTimeLimit: 'days'
+    };
+    return units[configKey] || '';
+  };
+
+  // Fetch all admin payment data
+  const fetchAdminPaymentData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all admin payment data
+      const [paymentsResponse,  configResponse, analyticsResponse] = await Promise.all([
+        fetchAllPlatformPayments(),
+        
+        fetchPlatformConfiguration(),
+        fetchPaymentAnalytics()
+      ]);
+
+      // Process platform statistics
+      const stats = calculatePlatformStatistics(paymentsResponse, analyticsResponse.paymentStats);
+      setPlatformStats(stats);
+      
+      // Set payments data
+      setAllPayments(paymentsResponse);
+      setFilteredPayments(paymentsResponse);
+      
+      
+      // Set configuration
+      setPlatformConfig(configResponse);
+      
+      // Generate chart data from analytics or payments
+    
+      
+    } catch (error) {
+      console.error('Error fetching admin payment data:', error);
+      Alert.alert('Error', 'Failed to load payment data. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [fetchAllPlatformPayments, fetchPlatformConfiguration, fetchPaymentAnalytics]); // Add dependencies
+
+  // API functions for admin payment management
+  const fetchAllPlatformPayments = useCallback(async () => {
+    try {
+      const params = {
+        page: 1,
+        limit: 1000, // Get all payments for comprehensive analysis
+        status: paymentFilters.status !== 'all' ? paymentFilters.status : undefined,
+        date_range: paymentFilters.dateRange !== 'all' ? paymentFilters.dateRange : undefined,
+        search: paymentFilters.searchQuery || undefined
+      };
+      
+      console.log('Fetching platform payments with params:', params);
+      const response = await adminAPI.payments.getAllPlatformPayments(params);
+      return response.payments || response || [];
+    } catch (error) {
+      console.error('Error fetching platform payments:', error);
+      // Show user-friendly error but don't fall back to mock data
+      Alert.alert('Error', 'Failed to load payment data. Please check your connection and try again.');
+      return [];
+    }
+  }, [paymentFilters.status, paymentFilters.dateRange, paymentFilters.searchQuery]);
+
+
+
+  const fetchPlatformConfiguration = useCallback(async () => {
+    try {
+      console.log('Fetching platform configuration');
+      const response = await adminAPI.payments.getPlatformConfig();
+      return response || {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    } catch (error) {
+      console.error('Error fetching platform config:', error);
+      // Return default config for first-time setup
+      return {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    }
+  }, []);
+
+  // Fetch payment analytics and statistics
+  const fetchPaymentAnalytics = useCallback(async () => {
+    try {
+      console.log('Fetching payment analytics');
+      const [analytics, commissionData, dashboardStats] = await Promise.all([
+        adminAPI.payments.getPaymentAnalytics({ months: 12 }),
+        adminAPI.payments.getCommissionAnalytics({ months: 12 }),
+        adminAPI.getDashboardStats() // Fetch admin dashboard stats that include payment_statistics
+      ]);
+      
+      return { 
+        analytics, 
+        commissionData, 
+        paymentStats: dashboardStats?.payments || null 
+      };
+    } catch (error) {
+      console.error('Error fetching payment analytics:', error);
+      return { analytics: null, commissionData: null, paymentStats: null };
+    }
+  }, []);
+
+  const calculatePlatformStatistics = (payments, paymentStats = null) => {
+    // If we have payment statistics from the backend, use them
+    if (paymentStats) {
+      return {
+        totalRevenue: parseFloat(paymentStats.total_payment_volume || 0),
+        totalCommissions: parseFloat(paymentStats.total_platform_commission || 0),
+        totalTransactions: paymentStats.total_payments || 0,
+        completedPayments: paymentStats.completed_payments || 0,
+        pendingPayments: paymentStats.pending_payments || 0,
+        failedPayments: paymentStats.failed_payments || 0,
+        disputedPayments: paymentStats.disputed_payments || 0, // Now available in payment_statistics
+        averageTransactionValue: parseFloat(paymentStats.average_payment_amount || 0),
+        monthlyGrowth: 12.5, // Mock growth percentage - could be calculated
+        commissionRate: 0.15,
+        totalPaymentVolume: parseFloat(paymentStats.total_payment_volume || 0),
+        totalPlatformCommission: parseFloat(paymentStats.total_platform_commission || 0),
+        firstPaymentDate: paymentStats.first_payment_date,
+        lastPaymentDate: paymentStats.last_payment_date
+      };
+    }
+    
+    // Fallback to calculating from payments array
+    const completed = payments.filter(p => p.status === 'completed');
+    const pending = payments.filter(p => p.status === 'pending');
+    const failed = payments.filter(p => p.status === 'failed');
+    const disputed = payments.filter(p => p.status === 'disputed');
+
+    const totalRevenue = completed.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+    const totalCommissions = completed.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+    const averageTransaction = completed.length > 0 ? totalRevenue / completed.length : 0;
+
+    return {
+      totalRevenue,
+      totalCommissions,
+      totalTransactions: payments.length,
+      completedPayments: completed.length,
+      pendingPayments: pending.length,
+      failedPayments: failed.length,
+      disputedPayments: disputed.length,
+      averageTransactionValue: averageTransaction,
+      monthlyGrowth: 12.5, // Mock growth percentage
+      commissionRate: 0.05,
+      totalPaymentVolume: totalRevenue,
+      totalPlatformCommission: totalCommissions,
+      firstPaymentDate: null,
+      lastPaymentDate: null
+    };
+  };
+
+  const generateChartData = useCallback((payments) => {
+    // Generate revenue chart data (last 12 months)
+    const monthlyRevenue = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = date.toISOString().substring(0, 7);
+      
+      const monthPayments = payments.filter(p => 
+        p.created_at?.startsWith(monthKey) && p.status === 'completed'
+      );
+      
+      const revenue = monthPayments.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+      const commission = monthPayments.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+      
+      monthlyRevenue.push({
+        month: date.toLocaleDateString('en', { month: 'short' }),
+        revenue,
+        commission
+      });
+    }
+    
+    return monthlyRevenue;
+  }, []);
+
+
+  // Filter payments based on current filters
+  const applyPaymentFilters = useCallback(() => {
+    let filtered = [...allPayments];
+
+    // Filter by date range
+    const daysAgo = parseInt(paymentFilters.dateRange);
+    if (daysAgo > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+    }
+
+    setFilteredPayments(filtered);
+  }, [allPayments, paymentFilters]);
+
+  useEffect(() => {
+    fetchAdminPaymentData();
+  }, [fetchAdminPaymentData]);
+
+  useEffect(() => {
+    applyPaymentFilters();
+  }, [applyPaymentFilters]);
+
+  // Handle payment refund
+  const handleRefundPayment = async () => {
+    if (!selectedPayment || !refundAmount || !refundReason) {
+      Alert.alert('Error', 'Please fill in all refund details');
+      return;
+    }
+
+    try {
+      // Call admin API to process refund
+      await adminAPI.payments.processRefund(selectedPayment.id, {
+        amount: parseFloat(refundAmount),
+        reason: refundReason
+      });
+
+      Alert.alert('Success', 'Refund has been processed successfully');
+      setRefundModal(false);
+      setSelectedPayment(null);
+      setRefundAmount('');
+      setRefundReason('');
+      fetchAdminPaymentData();
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      Alert.alert('Error', error.message || 'Failed to process refund');
+    }
+  };
+
+
+
+  // Update platform configuration
+  const handleUpdateConfiguration = async () => {
+    try {
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig(platformConfig);
+
+      Alert.alert('Success', 'Platform configuration updated successfully');
+      setConfigModal(false);
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Handle opening individual config edit
+  const handleEditConfig = (configKey) => {
+    setEditingConfig(configKey);
+    
+    // Set the current value based on the config key
+    let currentValue = platformConfig[configKey];
+    if (configKey === 'commissionRate') {
+      currentValue = (currentValue * 100).toString(); // Convert to percentage
+    } else {
+      currentValue = currentValue.toString();
+    }
+    
+    setEditValue(currentValue);
+    setConfigModal(true);
+  };
+
+  // Handle updating individual config
+  const handleUpdateIndividualConfig = async () => {
+    try {
+      if (!editingConfig || !editValue.trim()) {
+        Alert.alert('Error', 'Please enter a valid value');
+        return;
+      }
+
+      let parsedValue = parseFloat(editValue);
+      if (isNaN(parsedValue) || parsedValue < 0) {
+        Alert.alert('Error', 'Please enter a valid positive number');
+        return;
+      }
+
+      // Convert percentage back to decimal for commission rate
+      if (editingConfig === 'commissionRate') {
+        if (parsedValue > 100) {
+          Alert.alert('Error', 'Commission rate cannot exceed 100%');
+          return;
+        }
+        parsedValue = parsedValue / 100;
+      }
+
+      // Update the specific config
+      const updatedConfig = {
+        ...platformConfig,
+        [editingConfig]: parsedValue
+      };
+
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig({ [editingConfig]: parsedValue });
+
+      // Update local state
+      setPlatformConfig(updatedConfig);
+
+      Alert.alert('Success', `${getConfigDisplayName(editingConfig)} updated successfully`);
+      setConfigModal(false);
+      setEditingConfig(null);
+      setEditValue('');
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Get display name for config keys
+  const getConfigDisplayName = (configKey) => {
+    const displayNames = {
+      commissionRate: 'Commission Rate',
+      minimumPayment: 'Minimum Payment',
+      maximumPayment: 'Maximum Payment',
+      autoApproveLimit: 'Auto-Approve Limit',
+      disputeTimeLimit: 'Dispute Time Limit',
+      refundTimeLimit: 'Refund Time Limit'
+    };
+    return displayNames[configKey] || configKey;
+  };
+
+  // Get input placeholder for config keys
+  const getConfigPlaceholder = (configKey) => {
+    const placeholders = {
+      commissionRate: 'Enter commission rate (e.g., 5.0)',
+      minimumPayment: 'Enter minimum payment amount',
+      maximumPayment: 'Enter maximum payment amount',
+      autoApproveLimit: 'Enter auto-approve limit',
+      disputeTimeLimit: 'Enter dispute time limit (days)',
+      refundTimeLimit: 'Enter refund time limit (days)'
+    };
+    return placeholders[configKey] || 'Enter value';
+  };
+
+  // Get input unit for config keys
+  const getConfigUnit = (configKey) => {
+    const units = {
+      commissionRate: '%',
+      minimumPayment: 'KES',
+      maximumPayment: 'KES',
+      autoApproveLimit: 'KES',
+      disputeTimeLimit: 'days',
+      refundTimeLimit: 'days'
+    };
+    return units[configKey] || '';
+  };
+
+  // Fetch all admin payment data
+  const fetchAdminPaymentData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all admin payment data
+      const [paymentsResponse,  configResponse, analyticsResponse] = await Promise.all([
+        fetchAllPlatformPayments(),
+        
+        fetchPlatformConfiguration(),
+        fetchPaymentAnalytics()
+      ]);
+
+      // Process platform statistics
+      const stats = calculatePlatformStatistics(paymentsResponse, analyticsResponse.paymentStats);
+      setPlatformStats(stats);
+      
+      // Set payments data
+      setAllPayments(paymentsResponse);
+      setFilteredPayments(paymentsResponse);
+      
+      
+      // Set configuration
+      setPlatformConfig(configResponse);
+      
+      // Generate chart data from analytics or payments
+    
+      
+    } catch (error) {
+      console.error('Error fetching admin payment data:', error);
+      Alert.alert('Error', 'Failed to load payment data. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [fetchAllPlatformPayments, fetchPlatformConfiguration, fetchPaymentAnalytics]); // Add dependencies
+
+  // API functions for admin payment management
+  const fetchAllPlatformPayments = useCallback(async () => {
+    try {
+      const params = {
+        page: 1,
+        limit: 1000, // Get all payments for comprehensive analysis
+        status: paymentFilters.status !== 'all' ? paymentFilters.status : undefined,
+        date_range: paymentFilters.dateRange !== 'all' ? paymentFilters.dateRange : undefined,
+        search: paymentFilters.searchQuery || undefined
+      };
+      
+      console.log('Fetching platform payments with params:', params);
+      const response = await adminAPI.payments.getAllPlatformPayments(params);
+      return response.payments || response || [];
+    } catch (error) {
+      console.error('Error fetching platform payments:', error);
+      // Show user-friendly error but don't fall back to mock data
+      Alert.alert('Error', 'Failed to load payment data. Please check your connection and try again.');
+      return [];
+    }
+  }, [paymentFilters.status, paymentFilters.dateRange, paymentFilters.searchQuery]);
+
+
+
+  const fetchPlatformConfiguration = useCallback(async () => {
+    try {
+      console.log('Fetching platform configuration');
+      const response = await adminAPI.payments.getPlatformConfig();
+      return response || {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    } catch (error) {
+      console.error('Error fetching platform config:', error);
+      // Return default config for first-time setup
+      return {
+        commissionRate: 0.05,
+        minimumPayment: 100,
+        maximumPayment: 100000,
+        autoApproveLimit: 10000,
+        disputeTimeLimit: 30,
+        refundTimeLimit: 7
+      };
+    }
+  }, []);
+
+  // Fetch payment analytics and statistics
+  const fetchPaymentAnalytics = useCallback(async () => {
+    try {
+      console.log('Fetching payment analytics');
+      const [analytics, commissionData, dashboardStats] = await Promise.all([
+        adminAPI.payments.getPaymentAnalytics({ months: 12 }),
+        adminAPI.payments.getCommissionAnalytics({ months: 12 }),
+        adminAPI.getDashboardStats() // Fetch admin dashboard stats that include payment_statistics
+      ]);
+      
+      return { 
+        analytics, 
+        commissionData, 
+        paymentStats: dashboardStats?.payments || null 
+      };
+    } catch (error) {
+      console.error('Error fetching payment analytics:', error);
+      return { analytics: null, commissionData: null, paymentStats: null };
+    }
+  }, []);
+
+  const calculatePlatformStatistics = (payments, paymentStats = null) => {
+    // If we have payment statistics from the backend, use them
+    if (paymentStats) {
+      return {
+        totalRevenue: parseFloat(paymentStats.total_payment_volume || 0),
+        totalCommissions: parseFloat(paymentStats.total_platform_commission || 0),
+        totalTransactions: paymentStats.total_payments || 0,
+        completedPayments: paymentStats.completed_payments || 0,
+        pendingPayments: paymentStats.pending_payments || 0,
+        failedPayments: paymentStats.failed_payments || 0,
+        disputedPayments: paymentStats.disputed_payments || 0, // Now available in payment_statistics
+        averageTransactionValue: parseFloat(paymentStats.average_payment_amount || 0),
+        monthlyGrowth: 12.5, // Mock growth percentage - could be calculated
+        commissionRate: 0.15,
+        totalPaymentVolume: parseFloat(paymentStats.total_payment_volume || 0),
+        totalPlatformCommission: parseFloat(paymentStats.total_platform_commission || 0),
+        firstPaymentDate: paymentStats.first_payment_date,
+        lastPaymentDate: paymentStats.last_payment_date
+      };
+    }
+    
+    // Fallback to calculating from payments array
+    const completed = payments.filter(p => p.status === 'completed');
+    const pending = payments.filter(p => p.status === 'pending');
+    const failed = payments.filter(p => p.status === 'failed');
+    const disputed = payments.filter(p => p.status === 'disputed');
+
+    const totalRevenue = completed.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+    const totalCommissions = completed.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+    const averageTransaction = completed.length > 0 ? totalRevenue / completed.length : 0;
+
+    return {
+      totalRevenue,
+      totalCommissions,
+      totalTransactions: payments.length,
+      completedPayments: completed.length,
+      pendingPayments: pending.length,
+      failedPayments: failed.length,
+      disputedPayments: disputed.length,
+      averageTransactionValue: averageTransaction,
+      monthlyGrowth: 12.5, // Mock growth percentage
+      commissionRate: 0.05,
+      totalPaymentVolume: totalRevenue,
+      totalPlatformCommission: totalCommissions,
+      firstPaymentDate: null,
+      lastPaymentDate: null
+    };
+  };
+
+  const generateChartData = useCallback((payments) => {
+    // Generate revenue chart data (last 12 months)
+    const monthlyRevenue = [];
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = date.toISOString().substring(0, 7);
+      
+      const monthPayments = payments.filter(p => 
+        p.created_at?.startsWith(monthKey) && p.status === 'completed'
+      );
+      
+      const revenue = monthPayments.reduce((sum, p) => sum + parseFloat(p.total_amount || 0), 0);
+      const commission = monthPayments.reduce((sum, p) => sum + parseFloat(p.platform_commission || 0), 0);
+      
+      monthlyRevenue.push({
+        month: date.toLocaleDateString('en', { month: 'short' }),
+        revenue,
+        commission
+      });
+    }
+    
+    return monthlyRevenue;
+  }, []);
+
+
+  // Filter payments based on current filters
+  const applyPaymentFilters = useCallback(() => {
+    let filtered = [...allPayments];
+
+    // Filter by date range
+    const daysAgo = parseInt(paymentFilters.dateRange);
+    if (daysAgo > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      filtered = filtered.filter(p => new Date(p.created_at) >= cutoffDate);
+    }
+
+    setFilteredPayments(filtered);
+  }, [allPayments, paymentFilters]);
+
+  useEffect(() => {
+    fetchAdminPaymentData();
+  }, [fetchAdminPaymentData]);
+
+  useEffect(() => {
+    applyPaymentFilters();
+  }, [applyPaymentFilters]);
+
+  // Handle payment refund
+  const handleRefundPayment = async () => {
+    if (!selectedPayment || !refundAmount || !refundReason) {
+      Alert.alert('Error', 'Please fill in all refund details');
+      return;
+    }
+
+    try {
+      // Call admin API to process refund
+      await adminAPI.payments.processRefund(selectedPayment.id, {
+        amount: parseFloat(refundAmount),
+        reason: refundReason
+      });
+
+      Alert.alert('Success', 'Refund has been processed successfully');
+      setRefundModal(false);
+      setSelectedPayment(null);
+      setRefundAmount('');
+      setRefundReason('');
+      fetchAdminPaymentData();
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      Alert.alert('Error', error.message || 'Failed to process refund');
+    }
+  };
+
+
+
+  // Update platform configuration
+  const handleUpdateConfiguration = async () => {
+    try {
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig(platformConfig);
+
+      Alert.alert('Success', 'Platform configuration updated successfully');
+      setConfigModal(false);
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Handle opening individual config edit
+  const handleEditConfig = (configKey) => {
+    setEditingConfig(configKey);
+    
+    // Set the current value based on the config key
+    let currentValue = platformConfig[configKey];
+    if (configKey === 'commissionRate') {
+      currentValue = (currentValue * 100).toString(); // Convert to percentage
+    } else {
+      currentValue = currentValue.toString();
+    }
+    
+    setEditValue(currentValue);
+    setConfigModal(true);
+  };
+
+  // Handle updating individual config
+  const handleUpdateIndividualConfig = async () => {
+    try {
+      if (!editingConfig || !editValue.trim()) {
+        Alert.alert('Error', 'Please enter a valid value');
+        return;
+      }
+
+      let parsedValue = parseFloat(editValue);
+      if (isNaN(parsedValue) || parsedValue < 0) {
+        Alert.alert('Error', 'Please enter a valid positive number');
+        return;
+      }
+
+      // Convert percentage back to decimal for commission rate
+      if (editingConfig === 'commissionRate') {
+        if (parsedValue > 100) {
+          Alert.alert('Error', 'Commission rate cannot exceed 100%');
+          return;
+        }
+        parsedValue = parsedValue / 100;
+      }
+
+      // Update the specific config
+      const updatedConfig = {
+        ...platformConfig,
+        [editingConfig]: parsedValue
+      };
+
+      // Call admin API to update configuration
+      await adminAPI.payments.updatePlatformConfig({ [editingConfig]: parsedValue });
+
+      // Update local state
+      setPlatformConfig(updatedConfig);
+
+      Alert.alert('Success', `${getConfigDisplayName(editingConfig)} updated successfully`);
+      setConfigModal(false);
+      setEditingConfig(null);
+      setEditValue('');
+    } catch (error) {
+      console.error('Error updating configuration:', error);
+      Alert.alert('Error', error.message || 'Failed to update configuration');
+    }
+  };
+
+  // Get display name for config keys
+  const getConfigDisplayName = (configKey) => {
+    const displayNames = {
+      commissionRate: 'Commission Rate',
+      minimumPayment: 'Minimum Payment',
+      maximumPayment: 'Maximum Payment',
+      autoApproveLimit: 'Auto-Approve Limit',
+      disputeTimeLimit: 'Dispute Time Limit',
+      refundTimeLimit: 'Refund Time Limit'
+    };
+    return displayNames[configKey] || configKey;
+  };
+
+  // Get input placeholder for config keys
+  const getConfigPlaceholder = (configKey) => {
+    const placeholders = {
+      commissionRate: 'Enter commission rate (e.g., 5.0)',
+      minimumPayment: 'Enter minimum payment amount',
+      maximumPayment: 'Enter maximum payment amount',
+      autoApproveLimit: 'Enter auto-approve limit',
+      disputeTimeLimit: 'Enter dispute time limit (days)',
+      refundTimeLimit: 'Enter refund time limit (days)'
+    };
+    return placeholders[configKey] || 'Enter value';
+  };
+
+  // Get input unit for config keys
+  const getConfigUnit = (configKey) => {
+    const units = {
+      commissionRate: '%',
+      minimumPayment: 'KES',
+      maximumPayment: 'KES',
+      autoApproveLimit: 'KES',
+      disputeTimeLimit: 'days',
+      refundTimeLimit: 'days'
+    };
+    return units[configKey] || '';
+  };
+
+  const renderOverviewTab = () => (
+    <ScrollView 
+      style={styles.tabContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchAdminPaymentData();
+          }}
+          colors={['#44DBE9']}
+          tintColor="#44DBE9"
+        />
+      }
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Enhanced Platform Revenue Summary */}
+      <View style={styles.modernSummaryCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleContainer}>
+            <View style={styles.modernCardIcon}>
+              <Ionicons name="analytics" size={24} color="#FFFFFF" />
+            </View>
+            <View>
+              <Text style={styles.modernCardTitle}>Platform Revenue</Text>
+              <Text style={styles.modernCardSubtitle}>Real-time overview</Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={styles.modernRefreshButton}
+            onPress={() => fetchAdminPaymentData()}
+          >
+            <Ionicons name="refresh" size={18} color="#44DBE9" />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Enhanced Summary Grid */}
+        <View style={styles.modernSummaryGrid}>
+          <View style={[styles.modernSummaryItem, styles.primaryCard]}>
+            <View style={styles.modernCardContent}>
+              <View style={styles.modernIconContainer}>
+                <Ionicons name="cash" size={24} color="#4CAF50" />
+              </View>
+              <View style={styles.modernCardText}>
+                <Text style={styles.modernCardValue}>{formatCurrency(platformStats.totalRevenue)}</Text>
+                <Text style={styles.modernCardLabel}>Total Revenue</Text>
+                <View style={styles.modernTrendContainer}>
+                  <Ionicons name="trending-up" size={14} color="#4CAF50" />
+                  <Text style={styles.modernTrendText}>+{platformStats.monthlyGrowth}%</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          
+          <View style={[styles.modernSummaryItem, styles.secondaryCard]}>
+            <View style={styles.modernCardContent}>
+              <View style={styles.modernIconContainer}>
+                <Ionicons name="wallet" size={24} color="#FF9800" />
+              </View>
+              <View style={styles.modernCardText}>
+                <Text style={styles.modernCardValue}>{formatCurrency(platformStats.totalCommissions)}</Text>
+                <Text style={styles.modernCardLabel}>Commission</Text>
+                <Text style={styles.modernCardSubtext}>
+                  {((platformStats.commissionRate || 0.15) * 100).toFixed(1)}% rate
+                </Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={[styles.modernSummaryItem, styles.secondaryCard]}>
+            <View style={styles.modernCardContent}>
+              <View style={styles.modernIconContainer}>
+                <Ionicons name="receipt" size={24} color="#2196F3" />
+              </View>
+              <View style={styles.modernCardText}>
+                <Text style={styles.modernCardValue}>{platformStats.totalTransactions}</Text>
+                <Text style={styles.modernCardLabel}>Transactions</Text>
+                <Text style={styles.modernCardSubtext}>All time</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={[styles.modernSummaryItem, styles.secondaryCard]}>
+            <View style={styles.modernCardContent}>
+              <View style={styles.modernIconContainer}>
+                <Ionicons name="trending-up" size={24} color="#9C27B0" />
+              </View>
+              <View style={styles.modernCardText}>
+                <Text style={styles.modernCardValue}>{formatCurrency(platformStats.averageTransactionValue)}</Text>
+                <Text style={styles.modernCardLabel}>Avg Transaction</Text>
+                <Text style={styles.modernCardSubtext}>Per payment</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        
+        {/* Payment Statistics Summary */}
+        {platformStats.totalPaymentVolume > 0 && (
+          <View style={styles.modernStatisticsSummary}>
+            <Text style={styles.modernStatisticsTitle}> Payment Analytics</Text>
+            <View style={styles.modernStatisticsRow}>
+              <View style={styles.modernStatisticItem}>
+                <Text style={styles.modernStatisticValue}>
+                  {formatCurrency(platformStats.totalPaymentVolume)}
+                </Text>
+                <Text style={styles.modernStatisticLabel}>Total Volume</Text>
+              </View>
+              <View style={styles.modernStatisticItem}>
+                <Text style={styles.modernStatisticValue}>
+                  {formatCurrency(platformStats.totalPlatformCommission)}
+                </Text>
+                <Text style={styles.modernStatisticLabel}>Commission</Text>
+              </View>
+            </View>
+            {platformStats.firstPaymentDate && platformStats.lastPaymentDate && (
+              <Text style={styles.modernStatisticsSubtext}>
+                From {new Date(platformStats.firstPaymentDate).toLocaleDateString()} 
+                to {new Date(platformStats.lastPaymentDate).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Enhanced Payment Status Cards */}
+      <View style={styles.modernStatsGrid}>
+        <TouchableOpacity 
+          style={[styles.modernStatCard, styles.completedCard]}
+          onPress={() => setSelectedTab('payments')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.modernStatHeader}>
+            <View style={styles.modernStatIcon}>
+              <Ionicons name="checkmark-circle" size={28} color="#FFFFFF" />
+            </View>
+            <View style={styles.modernStatBadge}>
+              <Text style={styles.modernStatNumber}>{platformStats.completedPayments}</Text>
+            </View>
+          </View>
+          <Text style={styles.modernStatLabel}>Completed</Text>
+          <Text style={styles.modernStatSubtext}>Successfully processed</Text>
+          <View style={styles.modernStatProgress}>
+            <View style={[styles.modernStatProgressBar, { 
+              width: `${(platformStats.completedPayments / Math.max(platformStats.totalTransactions, 1) * 100)}%`,
+              backgroundColor: 'rgba(255, 255, 255, 0.3)'
+            }]} />
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.modernStatCard, styles.pendingCard]}
+          onPress={() => setSelectedTab('payments')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.modernStatHeader}>
+            <View style={styles.modernStatIcon}>
+              <Ionicons name="time" size={28} color="#FFFFFF" />
+            </View>
+            <View style={styles.modernStatBadge}>
+              <Text style={styles.modernStatNumber}>{platformStats.pendingPayments}</Text>
+            </View>
+          </View>
+          <Text style={styles.modernStatLabel}>Pending</Text>
+          <Text style={styles.modernStatSubtext}> Awaiting approval</Text>
+          <View style={styles.modernStatProgress}>
+            <View style={[styles.modernStatProgressBar, { 
+              width: `${(platformStats.pendingPayments / Math.max(platformStats.totalTransactions, 1) * 100)}%`,
+              backgroundColor: 'rgba(255, 255, 255, 0.3)'
+            }]} />
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.modernStatCard, styles.failedCard]
+  modernStatisticsSummary: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modernStatisticsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  modernStatisticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modernStatisticItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  modernStatisticValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  modernStatisticLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  modernStatisticsSubtext: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+
+  // Modern Stats Grid
+  modernStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  modernStatCard: {
+    width: '48%',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    marginHorizontal: '1%',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  completedCard: {
+    backgroundColor: '#4CAF50',
+  },
+  pendingCard: {
+    backgroundColor: '#FF9800',
+  },
+  failedCard: {
+    backgroundColor: '#F44336',
+  },
+  disputedCard: {
+    backgroundColor: '#9C27B0',
+  },
+  modernStatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modernStatIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modernStatBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  modernStatNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  modernStatLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  modernStatSubtext: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 8,
+  },
+  modernStatProgress: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  modernStatProgressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
+
+  // Modern Chart Cards
+  modernChartCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    margin: 16,
+    padding: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  modernChartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modernChartTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modernChartTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginLeft: 12,
+  },
+  modernChartSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
+  modernChartAction: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(68, 219, 233, 0.1)',
+  },
+  modernChartContainer: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  modernCommissionSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  modernCommissionItem: {
+    alignItems: 'center',
+  },
+  modernCommissionLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  modernCommissionValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+
+  // Legacy card styles (keeping for compatibility)
+  refreshButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#F0F9FF',
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  summaryItem: {
+    width: '48%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  statisticsSummary: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#44DBE9',
+  },
+  statisticsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  statisticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  statisticsText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  statisticsSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+
+  // Payment Filters Card
+  filtersCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    margin: 16,
+    padding: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  filtersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  filtersTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  clearFiltersButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  clearFiltersText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  searchContainer: {
+    marginBottom: 20,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1F2937',
+    paddingVertical: 0,
+  },
+  clearSearchButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  filterSection: {
+    marginBottom: 16,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginHorizontal: 4,
+    marginBottom: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  filterChipActive: {
+    backgroundColor: '#44DBE9',
+    borderColor: '#44DBE9',
+    shadowColor: '#44DBE9',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  resultsMessage: {
+    padding: 16,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#44DBE9',
+    marginTop: 16,
+  },
+  resultsText: {
+    fontSize: 15,
+    color: '#1E40AF',
+    fontWeight: '600',
+  },
+
+  // Enhanced Payment Items
+  paymentsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  paymentItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  paymentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  paymentIdContainer: {
+    flex: 1,
+  },
+  paymentId: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  paymentDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statusText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  paymentTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 16,
+    lineHeight: 24,
+  },
+  paymentDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  paymentUsersContainer: {
+    flex: 1,
+  },
+  userFlow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userName: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    fontWeight: '600',
+    flex: 1,
+  },
+  flowArrow: {
+    marginHorizontal: 12,
+    padding: 4,
+  },
+  paymentAmountContainer: {
+    alignItems: 'flex-end',
+  },
+  paymentAmount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  commissionAmount: {
+    fontSize: 13,
+    color: '#EF4444',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  paymentFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  paymentMetadata: {
+    flex: 1,
+  },
+  paymentMethod: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  processingTime: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  paymentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  refundButton: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  resolveButton: {
+    backgroundColor: '#F3E8FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  approveButton: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  viewButton: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  emptyPaymentsList: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyPaymentsText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#6B7280',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  emptyPaymentsSubtext: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 24,
+  },
+
+  // Additional missing styles for modern UI
+  disputeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bulkActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(156, 39, 176, 0.1)',
+    borderRadius: 12,
+  },
+  bulkActionText: {
+    fontSize: 12,
+    color: '#9C27B0',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+
+  // Enhanced Disputes Section Styles
+  disputeStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 20,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  disputeStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  disputeStatNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  disputeStatLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  disputeItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  disputeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  disputeId: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  disputeType: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  disputeDescription: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  disputeFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  disputeDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  disputeReporter: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  priorityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 87, 34, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 87, 34, 0.2)',
+  },
+  priorityText: {
+    fontSize: 12,
+    color: '#FF5722',
+    fontWeight: '700',
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+    marginHorizontal: 16,
+  },
+  emptyStateText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#6B7280',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 24,
+  },
+
+  // Enhanced Dispute Modal Styles
+  disputeModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    margin: 20,
+    maxHeight: '80%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+  },
+  disputeDetails: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  disputeModalId: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  disputeModalType: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  disputeModalDescription: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+    marginBottom: 12,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  disputeModalReporter: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  disputeModalDate: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  resolutionOptions: {
+    marginBottom: 20,
+  },
+  resolutionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  resolutionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  resolutionOptionText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
+    marginLeft: 12,
+    flex: 1,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    margin: 20,
+    width: '90%',
+    maxHeight: '70%',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 20,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    marginBottom: 16,
+  },
+  modalTextArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  cancelButton: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  confirmButton: {
+    backgroundColor: '#44DBE9',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  // Reports Tab Styles
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  reportButtonText: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  reportButtonTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  reportButtonSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+
+  // Configuration Tab Styles
+  configRefreshButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(68, 219, 233, 0.1)',
+  },
+  configCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  configTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  configItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  configLabel: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+    flex: 1,
+  },
+  configValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  configValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  editIcon: {
+    padding: 4,
+  },
+  paymentMethodsList: {
+    marginTop: 8,
+  },
+  paymentMethodItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  paymentMethodName: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+    flex: 1,
+    marginLeft: 12,
+  },
+  paymentMethodStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paymentMethodStatusText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginRight: 6,
+    fontWeight: '500',
+  },
+  securitySettings: {
+    marginTop: 8,
+  },
+  securityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  securityInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  securityLabel: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  securityStatus: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  configActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  primaryConfigButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#44DBE9',
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginRight: 8,
+    elevation: 3,
+    shadowColor: '#44DBE9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  primaryConfigButtonText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  secondaryConfigButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    paddingVertical: 16,
+    marginLeft: 8,
+    borderWidth: 2,
+    borderColor: '#44DBE9',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  secondaryConfigButtonText: {
+    fontSize: 16,
+    color: '#44DBE9',
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  
+  // Configuration Form Styles
+  configForm: {
+    maxHeight: 400,
+    marginVertical: 16,
+  },
+  configSection: {
+    marginBottom: 20,
+  },
+  configFormLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  configInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#374151',
+  },
+  configInputFocused: {
+    borderColor: '#44DBE9',
+    backgroundColor: '#FFFFFF',
+  },
+});
+
+export default AdminPaymentManagement;

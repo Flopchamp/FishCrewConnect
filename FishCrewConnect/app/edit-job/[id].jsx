@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { jobsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import CustomButton from '../../components/CustomButton';
@@ -46,7 +46,7 @@ const EditJobScreen = () => {
         
         // For testing purposes, let's add some mock data if API fails
         try {
-          const jobData = await jobsAPI.getJobById(jobId);
+          const jobData = await apiService.jobs.getJobById(jobId);
           
           // Check if user is the owner of this job
           if (!user || user.id !== jobData.user_id) {
@@ -147,7 +147,7 @@ const EditJobScreen = () => {
         ...formData,
         application_deadline: formData.application_deadline || null,
       };      try {
-        await jobsAPI.updateJob(jobId, updateData);
+        await apiService.jobs.updateJob(jobId, updateData);
         
         Alert.alert(
           'Success',
@@ -179,7 +179,7 @@ const EditJobScreen = () => {
           onPress: async () => {
             try {
               setSaving(true);
-              await jobsAPI.deleteJob(jobId);
+              await apiService.jobs.deleteJob(jobId);
               Alert.alert(
                 'Success',
                 'Job deleted successfully',

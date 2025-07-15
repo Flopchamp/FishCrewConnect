@@ -251,7 +251,8 @@ const JobManagement = () => {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <SafeScreenWrapper>          <HeaderBox
+        <SafeScreenWrapper>
+          <HeaderBox
             title="Job Details"
             leftComponent={
               <TouchableOpacity onPress={() => setJobDetailModal(false)}>

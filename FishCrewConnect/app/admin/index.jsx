@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
-import api from '../../services/api';
+import apiService from '../../services/api';
 
 const AdminDashboard = () => {
   const router = useRouter();
@@ -13,7 +13,13 @@ const AdminDashboard = () => {
     totalUsers: 0,
     totalJobs: 0,
     totalApplications: 0,
-    activeConversations: 0
+    activeConversations: 0,
+    // Add payment statistics
+    totalPayments: 0,
+    completedPayments: 0,
+    pendingPayments: 0,
+    totalRevenue: 0,
+    totalCommission: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,13 +34,19 @@ const AdminDashboard = () => {
       setError(null);
       console.log('Loading admin dashboard statistics...');
       
-      const data = await api.admin.getDashboardStats();
+      const data = await apiService.admin.getDashboardStats();
       console.log('Received admin stats:', data);      // Update stats with real data from API
       setStats({
         totalUsers: data.totals.users,
         totalJobs: data.totals.jobs,
         totalApplications: data.totals.applications,
-        activeConversations: data.active?.conversations || data.totals?.conversations || 0
+        activeConversations: data.active?.conversations || data.totals?.conversations || 0,
+        // Add payment statistics
+        totalPayments: data.payments?.total_payments || 0,
+        completedPayments: data.payments?.completed_payments || 0,
+        pendingPayments: data.payments?.pending_payments || 0,
+        totalRevenue: data.payments?.total_payment_volume || 0,
+        totalCommission: data.payments?.total_platform_commission || 0
       });
       
     } catch (error) {
@@ -76,6 +88,16 @@ const AdminDashboard = () => {
     );
   };
 
+  const formatCurrency = (amount) => {
+    if (amount >= 1000000) {
+      return `KSH ${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `KSH ${(amount / 1000).toFixed(1)}K`;
+    } else {
+      return `KSH ${parseInt(amount).toLocaleString()}`;
+    }
+  };
+
   const navigateToUserManagement = () => {
     router.push('/admin/users');
   };
@@ -86,6 +108,10 @@ const AdminDashboard = () => {
 
   const navigateToReports = () => {
     router.push('/admin/reports');
+  };
+
+  const navigateToPayments = () => {
+    router.push('/admin/payments');
   };
 
   const navigateToSettings = () => {
@@ -149,7 +175,60 @@ const AdminDashboard = () => {
               <Text style={styles.statLabel}>Conversations</Text>
             </View>
           </View>
-        </View>{/* Management Options */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, styles.statCard5]}>
+              <Ionicons name="cash-outline" size={32} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" style={styles.statNumber} />
+              ) : (
+                <Text style={styles.statNumber}>{stats.totalPayments}</Text>
+              )}
+              <Text style={styles.statLabel}>Total Payments</Text>
+            </View>
+            <View style={[styles.statCard, styles.statCard6]}>
+              <Ionicons name="checkmark-circle-outline" size={32} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" style={styles.statNumber} />
+              ) : (
+                <Text style={styles.statNumber}>{stats.completedPayments}</Text>
+              )}
+              <Text style={styles.statLabel}>Completed Payments</Text>
+            </View>
+          </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, styles.statCard7]}>
+              <Ionicons name="time-outline" size={32} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" style={styles.statNumber} />
+              ) : (
+                <Text style={styles.statNumber}>{stats.pendingPayments}</Text>
+              )}
+              <Text style={styles.statLabel}>Pending Payments</Text>
+            </View>
+            <View style={[styles.statCard, styles.statCard8]}>
+              <Ionicons name="trending-up-outline" size={32} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" style={styles.statNumber} />
+              ) : (
+                <Text style={styles.statNumber}>{formatCurrency(stats.totalRevenue)}</Text>
+              )}
+              <Text style={styles.statLabel}>Total Revenue</Text>
+            </View>
+          </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, styles.statCard9]}>
+              <Ionicons name="cash" size={32} color="#fff" />
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" style={styles.statNumber} />
+              ) : (
+                <Text style={styles.statNumber}>{formatCurrency(stats.totalCommission)}</Text>
+              )}
+              <Text style={styles.statLabel}>Total Commission</Text>
+            </View>
+          </View>
+        </View>
+        
+        {/* Management Options */}
         <View style={styles.managementSection}>
           <Text style={styles.sectionTitle}>Management</Text>
           
@@ -181,6 +260,17 @@ const AdminDashboard = () => {
               <View style={styles.managementCardText}>
                 <Text style={styles.managementCardTitle}>Reports & Analytics</Text>
                 <Text style={styles.managementCardSubtitle}>View platform usage and performance metrics</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.managementCard} onPress={navigateToPayments}>
+            <View style={styles.managementCardContent}>
+              <Ionicons name="card" size={24} color="#4CAF50" />
+              <View style={styles.managementCardText}>
+                <Text style={styles.managementCardTitle}>Payment Management</Text>
+                <Text style={styles.managementCardSubtitle}>Monitor transactions, commissions, and payment history</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </View>
@@ -260,6 +350,21 @@ const styles = StyleSheet.create({
   },
   statCard4: {
     backgroundColor: '#9C27B0',
+  },
+  statCard5: {
+    backgroundColor: '#2196F3',
+  },
+  statCard6: {
+    backgroundColor: '#4CAF50',
+  },
+  statCard7: {
+    backgroundColor: '#FF9800',
+  },
+  statCard8: {
+    backgroundColor: '#9C27B0',
+  },
+  statCard9: {
+    backgroundColor: '#673AB7',
   },
   statNumber: {
     fontSize: 28,

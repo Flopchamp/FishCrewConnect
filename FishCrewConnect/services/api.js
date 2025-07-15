@@ -260,6 +260,21 @@ export const authAPI = {
     }
   },
 
+  checkEmailExists: async (email) => {
+    try {
+      const response = await api.post('/api/auth/check-email', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Check email API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  },
+
   forgotPassword: async (email) => {
     try {
       const response = await api.post('/api/auth/forgot-password', { email });
@@ -289,10 +304,56 @@ export const authAPI = {
       throw error.response?.data || { message: error.message, originalError: error };
     }
   },
+
+  resetPasswordDirect: async (email, newPassword) => {
+    try {
+      const response = await api.post('/api/auth/reset-password-direct', { email, newPassword });
+      return response.data;
+    } catch (error) {
+      console.error('Reset password direct API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  },
+
+  sendOTP: async (email) => {
+    try {
+      const response = await api.post('/api/auth/send-otp', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Send OTP API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  },
+
+  verifyOTP: async (email, otp) => {
+    try {
+      const response = await api.post('/api/auth/verify-otp', { email, otp });
+      return response.data;
+    } catch (error) {
+      console.error('Verify OTP API error:', error.message || 'Unknown error');
+      
+      if (!error.response) {
+        throw { message: 'Could not reach the server. Please check your connection.', originalError: error };
+      }
+      
+      throw error.response?.data || { message: error.message, originalError: error };
+    }
+  }
 };
 
 // Jobs API methods
-export const jobsAPI = {  getAllJobs: async () => {
+const jobsAPI = {
+  getAllJobs: async () => {
     try {
       const response = await api.get('/api/jobs');
       return response.data;
@@ -300,7 +361,8 @@ export const jobsAPI = {  getAllJobs: async () => {
       console.error('Get all jobs error:', error);
       throw error.response?.data || { message: error.message || 'Failed to fetch jobs' };
     }
-  },  getJob: async (jobId) => {
+  },
+  getJob: async (jobId) => {
     try {
       const response = await api.get(`/api/jobs/${jobId}`);
       return response.data;
@@ -326,7 +388,9 @@ export const jobsAPI = {  getAllJobs: async () => {
     } catch (error) {
       throw error.response?.data || error.message;
     }
-  },  getMyJobs: async () => {
+  },
+
+  getMyJobs: async () => {
     try {
       console.log('Fetching my jobs');
       const response = await api.get('/api/jobs/my-jobs');
@@ -350,18 +414,22 @@ export const jobsAPI = {  getAllJobs: async () => {
 
 // Job Applications API methods
 export const applicationsAPI = {
-  applyForJob: async (jobId, cvFile) => {
+  applyForJob: async (jobId, file = null, coverLetter = '') => {
     try {
-      // Create FormData for file upload
       const formData = new FormData();
       
-      // Append the CV file
-      formData.append('cv_file', {
-        uri: cvFile.uri,
-        type: cvFile.mimeType || 'application/octet-stream',
-        name: cvFile.name
-      });
-
+      // Add cover letter to form data
+      formData.append('cover_letter', coverLetter);
+      
+      // Add CV file if provided
+      if (file) {
+        formData.append('cv_file', {
+          uri: file.uri,
+          type: file.mimeType || 'application/pdf',
+          name: file.name
+        });
+      }
+      
       const response = await api.post(`/api/applications/job/${jobId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -406,18 +474,6 @@ export const applicationsAPI = {
       return data;
     } catch (error) {
       throw error.response?.data || error.message;
-    }
-  },
-
-  downloadCV: async (applicationId) => {
-    try {
-      const response = await api.get(`/api/applications/${applicationId}/download-cv`, {
-        responseType: 'blob', // Important for file downloads
-      });
-      return response;
-    } catch (error) {
-      console.error('Download CV error:', error);
-      throw error.response?.data || { message: error.message || 'Failed to download CV' };
     }
   },
 };
@@ -525,9 +581,45 @@ export const userAPI = {
   },
     updateProfile: async (userData) => {
     try {
-      // Use the correct endpoint for user profile updates
-      const response = await api.put('/api/users/me', userData);
-      return response.data;
+      // Check if profile image is included and is a file URI
+      const hasProfileImage = userData.profile_image && 
+                             (userData.profile_image.startsWith('file://') || 
+                              userData.profile_image.startsWith('content://'));
+      
+      if (hasProfileImage) {
+        // Use FormData for file upload
+        const formData = new FormData();
+        
+        // Add profile image file
+        formData.append('profile_image', {
+          uri: userData.profile_image,
+          type: 'image/jpeg',
+          name: 'profile_image.jpg'
+        });
+        
+        // Add other profile data
+        Object.keys(userData).forEach(key => {
+          if (key !== 'profile_image') {
+            // Convert arrays to JSON strings for backend processing
+            if (Array.isArray(userData[key])) {
+              formData.append(key, JSON.stringify(userData[key]));
+            } else {
+              formData.append(key, userData[key]);
+            }
+          }
+        });
+        
+        const response = await api.put('/api/users/me', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        return response.data;
+      } else {
+        // Regular JSON update without file
+        const response = await api.put('/api/users/me', userData);
+        return response.data;
+      }
     } catch (error) {
       console.error('Profile update error:', error);
       throw error.response?.data || error.message;
@@ -941,14 +1033,422 @@ export const adminAPI = {
     try {
       console.log('Fetching admin activity log with params:', params);
       const response = await api.get('/api/admin/activity-log', { params });
-      console.log('Activity log received:', response.data);
+      console.log('Admin activity log received:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error fetching activity log:', error);
+      console.error('Error fetching admin activity log:', error);
       if (error.response?.status === 403) {
         throw new Error('Access denied. Admin privileges required.');
       }
       throw new Error('Failed to load activity log. Please try again.');
+    }
+  },
+
+  verifyUser: async (userId, notes = '') => {
+    try {
+      console.log('Verifying user:', { userId, notes });
+      const response = await api.post(`/api/admin/users/${userId}/verify`, {
+        notes
+      });
+      console.log('User verified:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      if (error.response?.status === 403) {
+        throw new Error('Access denied. Admin privileges required.');
+      }
+      if (error.response?.status === 404) {
+        throw new Error('User not found.');
+      }
+      if (error.response?.status === 400) {
+        throw new Error(error.response.data?.message || 'Cannot verify this user.');
+      }
+      throw new Error('Failed to verify user. Please try again.');
+    }
+  },
+
+  // Admin Payment Management Methods
+  payments: {
+    // Get all platform payments (admin only)
+    getAllPlatformPayments: async (params = {}) => {
+      try {
+        console.log('Fetching all platform payments:', params);
+        const response = await api.get('/api/admin/payments', { params });
+        console.log('Platform payments received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching platform payments:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch platform payments. Please try again.');
+      }
+    },
+
+    // Get platform payment statistics
+    getPaymentStatistics: async (params = {}) => {
+      try {
+        console.log('Fetching payment statistics:', params);
+        const response = await api.get('/api/admin/payments/statistics', { params });
+        console.log('Payment statistics received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching payment statistics:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch payment statistics. Please try again.');
+      }
+    },
+
+    // Get payment analytics/charts data
+    getPaymentAnalytics: async (params = {}) => {
+      try {
+        console.log('Fetching payment analytics:', params);
+        const response = await api.get('/api/admin/payments/analytics', { params });
+        console.log('Payment analytics received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching payment analytics:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch payment analytics. Please try again.');
+      }
+    },
+
+    // Get payment disputes
+    getDisputes: async (params = {}) => {
+      try {
+        console.log('Fetching payment disputes:', params);
+        const response = await api.get('/api/admin/payments/disputes', { params });
+        console.log('Payment disputes received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching payment disputes:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch payment disputes. Please try again.');
+      }
+    },
+
+    // Resolve payment dispute
+    resolveDispute: async (disputeId, resolutionData) => {
+      try {
+        console.log('Resolving payment dispute:', disputeId, resolutionData);
+        const response = await api.post(`/api/admin/payments/disputes/${disputeId}/resolve`, resolutionData);
+        console.log('Dispute resolved:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error resolving payment dispute:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 404) {
+          throw new Error('Dispute not found.');
+        }
+        throw new Error('Failed to resolve dispute. Please try again.');
+      }
+    },
+
+    // Process payment refund
+    processRefund: async (paymentId, refundData) => {
+      try {
+        console.log('Processing payment refund:', paymentId, refundData);
+        const response = await api.post(`/api/admin/payments/${paymentId}/refund`, refundData);
+        console.log('Refund processed:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error processing refund:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 404) {
+          throw new Error('Payment not found.');
+        }
+        if (error.response?.status === 400) {
+          throw new Error(error.response.data?.message || 'Cannot process refund for this payment.');
+        }
+        throw new Error('Failed to process refund. Please try again.');
+      }
+    },
+
+    // Reverse payment transaction
+    reversePayment: async (paymentId, reverseData) => {
+      try {
+        console.log('Reversing payment:', paymentId, reverseData);
+        const response = await api.post(`/api/admin/payments/${paymentId}/reverse`, reverseData);
+        console.log('Payment reversed:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error reversing payment:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 404) {
+          throw new Error('Payment not found.');
+        }
+        if (error.response?.status === 400) {
+          throw new Error(error.response.data?.message || 'Cannot reverse this payment.');
+        }
+        throw new Error('Failed to reverse payment. Please try again.');
+      }
+    },
+
+    // Get platform configuration
+    getPlatformConfig: async () => {
+      try {
+        console.log('Fetching platform payment configuration');
+        const response = await api.get('/api/admin/payments/config');
+        console.log('Platform config received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching platform config:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch platform configuration. Please try again.');
+      }
+    },
+
+    // Update platform configuration
+    updatePlatformConfig: async (configData) => {
+      try {
+        console.log('Updating platform payment configuration:', configData);
+        const response = await api.put('/api/admin/payments/config', configData);
+        console.log('Platform config updated:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error updating platform config:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 400) {
+          throw new Error(error.response.data?.message || 'Invalid configuration data.');
+        }
+        throw new Error('Failed to update platform configuration. Please try again.');
+      }
+    },
+
+    // Get user payment history (admin view)
+    getUserPaymentHistory: async (userId, params = {}) => {
+      try {
+        console.log('Fetching user payment history:', userId, params);
+        const response = await api.get(`/api/admin/payments/users/${userId}`, { params });
+        console.log('User payment history received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching user payment history:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 404) {
+          throw new Error('User not found.');
+        }
+        throw new Error('Failed to fetch user payment history. Please try again.');
+      }
+    },
+
+    // Generate payment reports
+    generateReport: async (reportType, params = {}) => {
+      try {
+        console.log('Generating payment report:', reportType, params);
+        const response = await api.post('/api/admin/payments/reports', {
+          type: reportType,
+          ...params
+        });
+        console.log('Payment report generated:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error generating payment report:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to generate payment report. Please try again.');
+      }
+    },
+
+    // Get commission analytics
+    getCommissionAnalytics: async (params = {}) => {
+      try {
+        console.log('Fetching commission analytics:', params);
+        const response = await api.get('/api/admin/payments/commission-analytics', { params });
+        console.log('Commission analytics received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching commission analytics:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch commission analytics. Please try again.');
+      }
+    },
+
+    // Get user payment analytics (top performers and payment patterns)
+    getUserPaymentAnalytics: async (params = {}) => {
+      try {
+        console.log('Fetching user payment analytics:', params);
+        const response = await api.get('/api/admin/payments/user-analytics', { params });
+        console.log('User payment analytics received:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching user payment analytics:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        throw new Error('Failed to fetch user payment analytics. Please try again.');
+      }
+    },
+
+    // Override payment status (emergency admin action)
+    overridePaymentStatus: async (paymentId, statusData) => {
+      try {
+        console.log('Overriding payment status:', paymentId, statusData);
+        const response = await api.post(`/api/admin/payments/${paymentId}/override-status`, statusData);
+        console.log('Payment status overridden:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error overriding payment status:', error);
+        if (error.response?.status === 403) {
+          throw new Error('Access denied. Admin privileges required.');
+        }
+        if (error.response?.status === 404) {
+          throw new Error('Payment not found.');
+        }
+        throw new Error('Failed to override payment status. Please try again.');
+      }
+    }
+  }
+};
+
+// Payment API methods
+export const paymentsAPI = {
+  // Initiate job payment from boat owner to fisherman
+  initiateJobPayment: async (paymentData) => {
+    try {
+      console.log('Initiating job payment:', paymentData);
+      const response = await api.post('/api/payments/initiate-job-payment', paymentData);
+      console.log('Payment initiated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      if (error.response?.status === 403) {
+        throw new Error('Access denied. Only boat owners can initiate payments.');
+      }
+      if (error.response?.status === 404) {
+        throw new Error('Job or application not found.');
+      }
+      if (error.response?.status === 400) {
+        throw new Error(error.response.data?.message || 'Invalid payment data.');
+      }
+      throw new Error('Failed to initiate payment. Please try again.');
+    }
+  },
+
+  // Get payment status
+  getPaymentStatus: async (paymentId) => {
+    try {
+      console.log('Fetching payment status for ID:', paymentId);
+      const response = await api.get(`/api/payments/status/${paymentId}`);
+      console.log('Payment status received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching payment status:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Payment not found.');
+      }
+      throw new Error('Failed to fetch payment status. Please try again.');
+    }
+  },
+
+  // Get payment history for user
+  getPaymentHistory: async (params = {}) => {
+    try {
+      console.log('Fetching payment history with params:', params);
+      const response = await api.get('/api/payments/history', { params });
+      console.log('Payment history received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      throw new Error('Failed to fetch payment history. Please try again.');
+    }
+  },
+
+  // Query M-Pesa transaction status
+  queryTransactionStatus: async (checkoutRequestID) => {
+    try {
+      console.log('Querying transaction status for:', checkoutRequestID);
+      const response = await api.post('/api/payments/query-status', { checkoutRequestID });
+      console.log('Transaction status received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error querying transaction status:', error);
+      throw new Error('Failed to query transaction status. Please try again.');
+    }
+  }
+};
+
+// Support API methods
+export const supportAPI = {
+  // Submit support ticket
+  submitTicket: async (ticketData) => {
+    try {
+      console.log('Submitting support ticket:', ticketData);
+      const response = await api.post('/api/support/ticket', ticketData);
+      console.log('Support ticket submitted:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error submitting support ticket:', error);
+      throw new Error('Failed to submit support ticket. Please try again.');
+    }
+  },
+
+  // Get user's support tickets
+  getUserTickets: async (params = {}) => {
+    try {
+      console.log('Fetching user support tickets:', params);
+      const response = await api.get('/api/support/tickets', { params });
+      console.log('Support tickets received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching support tickets:', error);
+      throw new Error('Failed to fetch support tickets. Please try again.');
+    }
+  },
+
+  // Get support ticket details
+  getTicketDetails: async (ticketId) => {
+    try {
+      console.log('Fetching support ticket details:', ticketId);
+      const response = await api.get(`/api/support/tickets/${ticketId}`);
+      console.log('Support ticket details received:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching support ticket details:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Support ticket not found.');
+      }
+      throw new Error('Failed to fetch support ticket details. Please try again.');
+    }
+  },
+
+  // Update support ticket (add user comment)
+  updateTicket: async (ticketId, updateData) => {
+    try {
+      console.log('Updating support ticket:', ticketId, updateData);
+      const response = await api.put(`/api/support/tickets/${ticketId}`, updateData);
+      console.log('Support ticket updated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating support ticket:', error);
+      if (error.response?.status === 404) {
+        throw new Error('Support ticket not found.');
+      }
+      if (error.response?.status === 400) {
+        throw new Error('Cannot update closed ticket.');
+      }
+      throw new Error('Failed to update support ticket. Please try again.');
     }
   }
 };
@@ -961,7 +1461,9 @@ export default {
   reviews: reviewsAPI,
   user: userAPI,
   messages: messagesAPI,
-  admin: adminAPI
+  admin: adminAPI,
+  payments: paymentsAPI,
+  support: supportAPI
 };
 
 // Export the base api instance for direct use

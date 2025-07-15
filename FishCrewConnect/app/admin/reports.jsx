@@ -14,13 +14,16 @@ import { Ionicons } from '@expo/vector-icons';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import api from '../../services/api';
+import pdfReportService from '../../services/pdfReportService';
 import { SimpleBarChart, SimpleLineChart, SimplePieChart } from '../../components/Charts';
 
 const Reports = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('30');
-  const [selectedType, setSelectedType] = useState('overview');  const [analyticsData, setAnalyticsData] = useState({});
+  const [selectedType, setSelectedType] = useState('overview');
+  const [analyticsData, setAnalyticsData] = useState({});
+  const [generatingPDF, setGeneratingPDF] = useState(false);
 
   const screenWidth = Dimensions.get('window').width;
 
@@ -908,6 +911,43 @@ const Reports = () => {
         return null;
     }
   };
+
+  const handleShareReport = async () => {
+    setGeneratingPDF(true);
+    try {
+      console.log('🔄 Starting PDF report generation...', selectedType);
+      
+      // Generate PDF report using the new service
+      const result = await pdfReportService.generateAndShareReport(
+        selectedType, 
+        analyticsData, 
+        {
+          title: `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Analytics Report`,
+          period: `${selectedPeriod} days`,
+          dateRange: selectedPeriod
+        }
+      );
+      
+      if (result.success) {
+        Alert.alert(
+          'Success',
+          result.message,
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ Error generating PDF report:', error);
+      Alert.alert(
+        'Error', 
+        'Failed to generate PDF report. Please try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
   return (
     <SafeScreenWrapper>
       <HeaderBox 
@@ -936,6 +976,20 @@ const Reports = () => {
             {renderReport()}
           </ScrollView>
         )}
+
+        {/* Share Report Button */}
+        <View style={styles.shareButtonContainer}>
+          <TouchableOpacity 
+            style={styles.shareButton}
+            onPress={handleShareReport}
+            disabled={generatingPDF}
+          >
+            <Ionicons name="share-social" size={16} color="#fff" />
+            <Text style={styles.shareButtonText}>
+              {generatingPDF ? 'Generating PDF...' : 'Share Report'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeScreenWrapper>
   );
@@ -1181,6 +1235,28 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
     textAlign: 'center',
+  },
+  shareButtonContainer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#007AFF',
+    elevation: 2,
+  },
+  shareButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginLeft: 8,
   },
 });
 

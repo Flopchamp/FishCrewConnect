@@ -25,13 +25,16 @@ const FormInput = ({
   leftIcon,
   secureTextEntry = false,
   style = {},
-  inputProps = {}
+  inputProps = {},
+  clearButton = false,
+  onClear,
+  containerStyle = {}
 }) => {
   const [isFocused, setIsFocused] = React.useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(!secureTextEntry);
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, containerStyle, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
       
       <View style={[
@@ -64,6 +67,19 @@ const FormInput = ({
           secureTextEntry={secureTextEntry && !isPasswordVisible}
           {...inputProps}
         />
+        
+        {clearButton && value && (
+          <TouchableOpacity 
+            style={styles.clearButton}
+            onPress={onClear}
+          >
+            <Ionicons 
+              name="close-circle" 
+              size={20} 
+              color="#999" 
+            />
+          </TouchableOpacity>
+        )}
         
         {secureTextEntry && (
           <TouchableOpacity 
@@ -135,6 +151,10 @@ const styles = StyleSheet.create({
   },
   passwordToggle: {
     padding: 4,
+  },
+  clearButton: {
+    padding: 4,
+    marginRight: 4,
   },
   errorContainer: {
     flexDirection: 'row',

@@ -101,6 +101,7 @@ const SignUp = () => {
         onChangeText={setFullName}
         autoCapitalize="words"
       />
+      
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -109,6 +110,7 @@ const SignUp = () => {
         keyboardType="email-address"
         autoCapitalize="none"
       />
+      
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -116,13 +118,16 @@ const SignUp = () => {
         onChangeText={setPassword}
         secureTextEntry
       />
+      
       <TextInput
         style={styles.input}
         placeholder="Confirm Password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         secureTextEntry
-      />      {/* Conditionally render role selection section */}
+      />
+      
+      {/* Conditionally render role selection section */}
       {!isAdminSignUp && (
         <View>
           <Text style={styles.roleTitle}>Select your role:</Text>
@@ -139,10 +144,11 @@ const SignUp = () => {
             >
               <Text style={[styles.roleButtonText, role === 'boat_owner' && styles.roleButtonTextSelected]}>Boat Owner</Text>
             </TouchableOpacity>
-            {/* Boat owner role is automatically selected when coming from boat owner sign up path */}
           </View>
         </View>
-      )}      <TouchableOpacity 
+      )}
+
+      <TouchableOpacity 
         style={styles.signUpButton} 
         onPress={handleSignUp}
         disabled={isSubmitting}

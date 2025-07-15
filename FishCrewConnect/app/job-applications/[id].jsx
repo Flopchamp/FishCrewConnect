@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { applicationsAPI, jobsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import DefaultProfileImage from '../../components/DefaultProfileImage';
@@ -33,12 +33,12 @@ const JobApplicationsScreen = () => {
       setLoading(true);
       
       // Get job details
-      const jobData = await jobsAPI.getJobById(jobId);
+      const jobData = await apiService.jobs.getJobById(jobId);
       console.log('Fetched job data:', jobData);
       setJob(jobData);
       
       // Get applications for this job
-      const applicationsData = await applicationsAPI.getJobApplications(jobId);
+      const applicationsData = await apiService.applications.getJobApplications(jobId);
       console.log('Fetched applications data:', applicationsData);
       setApplications(applicationsData || []);
     } catch (error) {
@@ -63,7 +63,7 @@ const JobApplicationsScreen = () => {
     const updateApplicationStatus = async (applicationId, status) => {
     try {
       setUpdatingStatus(applicationId);
-      await applicationsAPI.updateApplicationStatus(applicationId, status);
+      await apiService.applications.updateApplicationStatus(applicationId, status);
       
       // Update local state
       setApplications(applications.map(app => 
@@ -167,6 +167,12 @@ const JobApplicationsScreen = () => {
 
   // Handle payment initiation
   const handlePayFisherman = (application) => {
+    // Check if job data is loaded
+    if (!job || !job.job_id) {
+      Alert.alert('Error', 'Job data is not loaded. Please refresh and try again.');
+      return;
+    }
+
     // Only allow payment for completed jobs with accepted applications
     if (job?.status !== 'completed') {
       Alert.alert('Payment Not Available', 'You can only pay fishermen after the job is completed.');
@@ -175,6 +181,12 @@ const JobApplicationsScreen = () => {
     
     if (application.status !== 'accepted') {
       Alert.alert('Payment Not Available', 'You can only pay fishermen who were accepted for the job.');
+      return;
+    }
+
+    // Check if application has necessary data
+    if (!application.id) {
+      Alert.alert('Error', 'Application data is incomplete. Please refresh and try again.');
       return;
     }
     
@@ -207,7 +219,7 @@ const JobApplicationsScreen = () => {
 
   // Check if payment is possible for an application
   const canPayFisherman = (application) => {
-    return job?.status === 'completed' && application.status === 'accepted';
+    return job && job.job_id && job?.status === 'completed' && application.status === 'accepted';
   };
 
   // Get status color based on status value
@@ -348,17 +360,6 @@ const JobApplicationsScreen = () => {
               </TouchableOpacity>            ))}
           </View>
           
-          {/* Review Button - Show only if job is completed and applicant was accepted */}
-          {canReviewApplicant(item) && (
-            <TouchableOpacity
-              style={styles.reviewButton}
-              onPress={() => handleReviewApplicant(item)}
-            >
-              <Ionicons name="star-outline" size={20} color="#FF9800" />
-              <Text style={styles.reviewButtonText}>Review Fisherman</Text>
-            </TouchableOpacity>
-          )}
-
           {/* Payment Button - Show only if job is completed and applicant was accepted */}
           {canPayFisherman(item) && (
             <TouchableOpacity
@@ -524,8 +525,8 @@ const JobApplicationsScreen = () => {
           visible={paymentModalVisible}
           onClose={closePaymentModal}
           onPaymentSuccess={handlePaymentSuccess}
-          application={selectedApplication}
-          job={job}
+          applicationData={selectedApplication}
+          jobData={job}
         />
       )}
     </SafeScreenWrapper>

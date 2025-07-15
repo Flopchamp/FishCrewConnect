@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { jobsAPI, applicationsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
@@ -53,25 +53,25 @@ const JobDetailsScreen = () => {
       setError(null);
       
       // Get job details from database
-      const jobData = await jobsAPI.getJobById(jobId);
+      const jobData = await apiService.jobs.getJobById(jobId);
       console.log('Job data loaded:', jobData);
       setJob(jobData);
       
       // Get job owner details
       if (jobData?.user_id) {
-        const ownerData = await jobsAPI.getJobOwner(jobData.user_id);
+        const ownerData = await apiService.jobs.getJobOwner(jobData.user_id);
         console.log('Owner data loaded:', ownerData);
         setOwner(ownerData);
         
         // Get reviews for the job owner
-        const reviewsData = await jobsAPI.getOwnerReviews(jobData.user_id);
+        const reviewsData = await apiService.jobs.getOwnerReviews(jobData.user_id);
         console.log('Reviews loaded:', reviewsData);
         setReviews(Array.isArray(reviewsData) ? reviewsData : []);
       }
       
       // Check if user has already applied
       if (user && user.user_type === 'fisherman') {
-        const applications = await applicationsAPI.getMyApplications();
+        const applications = await apiService.applications.getMyApplications();
         const hasAlreadyApplied = applications.some(app => 
           app.job_id === parseInt(jobId)
         );
@@ -148,7 +148,7 @@ const JobDetailsScreen = () => {
   const handleApplyWithFile = async (file) => {
     try {
       setApplying(true);
-      await applicationsAPI.applyForJob(jobId, file);
+      await apiService.applications.applyForJob(jobId, file);
       Alert.alert('Success', 'Your application has been submitted with your CV');
       setHasApplied(true);
       setSelectedCV(null);
