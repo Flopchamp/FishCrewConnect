@@ -288,6 +288,286 @@ This email was sent to ${userEmail}
         const info = await this.transporter.sendMail(mailOptions);
         return info;
     }
+
+    // Send support ticket notification to admin team
+    async sendSupportTicketNotification(ticketData) {
+        if (!this.transporter) {
+            console.error('Email service not configured');
+            return false;
+        }
+
+        try {
+            const { ticketId, userName, userEmail, userType, category, subject, description, priority } = ticketData;
+            
+            const priorityColors = {
+                low: '#10b981',
+                normal: '#f59e0b',
+                high: '#ef4444',
+                urgent: '#dc2626'
+            };
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>New Support Ticket - FishCrewConnect</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+                        .content { background: #f8fafc; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1e40af; }
+                        .priority-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; color: white; }
+                        .user-info { background: #e5e7eb; padding: 15px; border-radius: 6px; margin: 15px 0; }
+                        .description { background: white; padding: 15px; border-radius: 6px; border: 1px solid #d1d5db; margin: 15px 0; }
+                        .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #6b7280; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logo">FishCrewConnect</div>
+                        <p>New Support Ticket Received</p>
+                    </div>
+                    
+                    <div class="content">
+                        <div class="ticket-info">
+                            <h2>Ticket #${ticketId}</h2>
+                            <p><strong>Subject:</strong> ${subject}</p>
+                            <p><strong>Category:</strong> ${category}</p>
+                            <p><strong>Priority:</strong> 
+                                <span class="priority-badge" style="background-color: ${priorityColors[priority] || '#6b7280'}">
+                                    ${priority.toUpperCase()}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div class="user-info">
+                            <h3>User Information</h3>
+                            <p><strong>Name:</strong> ${userName}</p>
+                            <p><strong>Email:</strong> ${userEmail}</p>
+                            <p><strong>User Type:</strong> ${userType.replace('_', ' ')}</p>
+                        </div>
+
+                        <div class="description">
+                            <h3>Issue Description</h3>
+                            <p>${description.replace(/\n/g, '<br>')}</p>
+                        </div>
+
+                        <p style="text-align: center; margin-top: 30px;">
+                            <a href="${process.env.ADMIN_URL || process.env.FRONTEND_URL}/admin/support/tickets/${ticketId}" 
+                               style="background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                                View & Respond to Ticket
+                            </a>
+                        </p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>FishCrewConnect Support System</p>
+                        <p>© ${new Date().getFullYear()} FishCrewConnect. All rights reserved.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const mailOptions = {
+                from: {
+                    name: 'FishCrewConnect Support',
+                    address: process.env.EMAIL_USER
+                },
+                to: process.env.SUPPORT_EMAIL || process.env.EMAIL_USER,
+                subject: `[Support] New ${priority.toUpperCase()} Priority Ticket #${ticketId}: ${subject}`,
+                html: htmlContent
+            };
+
+            const info = await this.transporter.sendMail(mailOptions);
+            console.log('Support ticket notification sent successfully:', info.messageId);
+            return true;
+
+        } catch (error) {
+            console.error('Error sending support ticket notification:', error);
+            return false;
+        }
+    }
+
+    // Send support ticket confirmation to user
+    async sendSupportTicketConfirmation(confirmationData) {
+        if (!this.transporter) {
+            console.error('Email service not configured');
+            return false;
+        }
+
+        try {
+            const { userEmail, userName, ticketId, subject } = confirmationData;
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Support Ticket Received - FishCrewConnect</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+                        .content { background: #f8fafc; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; }
+                        .next-steps { background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; }
+                        .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #6b7280; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logo">🎣 FishCrewConnect</div>
+                        <p>Support Ticket Confirmation</p>
+                    </div>
+                    
+                    <div class="content">
+                        <h2>Hello ${userName}!</h2>
+                        
+                        <p>Thank you for contacting FishCrewConnect support. We've received your support request and want to confirm the details.</p>
+                        
+                        <div class="ticket-info">
+                            <h3>📋 Your Support Ticket</h3>
+                            <p><strong>Ticket ID:</strong> #${ticketId}</p>
+                            <p><strong>Subject:</strong> ${subject}</p>
+                            <p><strong>Status:</strong> Open</p>
+                            <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+
+                        <div class="next-steps">
+                            <h3>📞 What happens next?</h3>
+                            <ul>
+                                <li><strong>Response Time:</strong> We aim to respond within 24 hours</li>
+                                <li><strong>Updates:</strong> You'll receive email updates on your ticket progress</li>
+                                <li><strong>Reference:</strong> Please reference ticket #${ticketId} in any follow-up communications</li>
+                                <li><strong>Additional Info:</strong> You can provide additional information by replying to this email</li>
+                            </ul>
+                        </div>
+                        
+                        <p>Our support team will review your request and get back to you as soon as possible. If this is an urgent matter, please contact us directly.</p>
+                        
+                        <p>Thank you for using FishCrewConnect!</p>
+                        
+                        <p>Best regards,<br>
+                        The FishCrewConnect Support Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to ${userEmail}</p>
+                        <p>© ${new Date().getFullYear()} FishCrewConnect. All rights reserved.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const mailOptions = {
+                from: {
+                    name: 'FishCrewConnect Support',
+                    address: process.env.EMAIL_USER
+                },
+                to: userEmail,
+                subject: `Support Ticket #${ticketId} Received - ${subject}`,
+                html: htmlContent
+            };
+
+            const info = await this.transporter.sendMail(mailOptions);
+            console.log('Support ticket confirmation sent successfully:', info.messageId);
+            return true;
+
+        } catch (error) {
+            console.error('Error sending support ticket confirmation:', error);
+            return false;
+        }
+    }
+
+    // Send support ticket response to user
+    async sendSupportTicketResponse(responseData) {
+        if (!this.transporter) {
+            console.error('Email service not configured');
+            return false;
+        }
+
+        try {
+            const { userEmail, userName, ticketId, subject, response } = responseData;
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Support Ticket Response - FishCrewConnect</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+                        .header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                        .logo { font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+                        .content { background: #f8fafc; padding: 30px; border-radius: 0 0 10px 10px; }
+                        .ticket-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1e40af; }
+                        .response { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; }
+                        .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #6b7280; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="logo">🎣 FishCrewConnect</div>
+                        <p>Support Ticket Response</p>
+                    </div>
+                    
+                    <div class="content">
+                        <h2>Hello ${userName}!</h2>
+                        
+                        <p>We've responded to your support ticket. Here are the details:</p>
+                        
+                        <div class="ticket-info">
+                            <h3>📋 Ticket Information</h3>
+                            <p><strong>Ticket ID:</strong> #${ticketId}</p>
+                            <p><strong>Subject:</strong> ${subject}</p>
+                            <p><strong>Response Date:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+
+                        <div class="response">
+                            <h3>💬 Our Response</h3>
+                            <p>${response.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        
+                        <p>If you need further assistance or have additional questions, please reply to this email or submit a new support ticket through the app.</p>
+                        
+                        <p>Thank you for using FishCrewConnect!</p>
+                        
+                        <p>Best regards,<br>
+                        The FishCrewConnect Support Team</p>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>This email was sent to ${userEmail}</p>
+                        <p>© ${new Date().getFullYear()} FishCrewConnect. All rights reserved.</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const mailOptions = {
+                from: {
+                    name: 'FishCrewConnect Support',
+                    address: process.env.EMAIL_USER
+                },
+                to: userEmail,
+                subject: `Support Ticket #${ticketId} Response - ${subject}`,
+                html: htmlContent
+            };
+
+            const info = await this.transporter.sendMail(mailOptions);
+            console.log('Support ticket response sent successfully:', info.messageId);
+            return true;
+
+        } catch (error) {
+            console.error('Error sending support ticket response:', error);
+            return false;
+        }
+    }
 }
 
 // Create singleton instance

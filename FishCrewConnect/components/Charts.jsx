@@ -203,7 +203,10 @@ export const SimpleBarChart = ({ data, width = screenWidth - 64, height = 220, c
                 fill="#333"
                 fontWeight="500"
               >
-                {typeof value === 'number' && !isNaN(value) ? value.toLocaleString() : '0'}
+                {(() => {
+                  const val = typeof value === 'number' && !isNaN(value) ? value.toLocaleString() : '0';
+                  return String(val || '0');
+                })()}
               </SvgText>
             </G>
           );
@@ -226,7 +229,7 @@ export const SimpleBarChart = ({ data, width = screenWidth - 64, height = 220, c
                 fontWeight="400"
                 transform={`rotate(-40, ${barCenterX}, ${labelY})`}
               >
-                {labelText}
+                {String(labelText || '')}
               </SvgText>
             );
           } else {
@@ -248,7 +251,7 @@ export const SimpleBarChart = ({ data, width = screenWidth - 64, height = 220, c
                     fill="#666"
                     fontWeight="400"
                   >
-                    {line1}
+                    {String(line1 || '')}
                   </SvgText>
                   <SvgText
                     x={barCenterX}
@@ -258,7 +261,7 @@ export const SimpleBarChart = ({ data, width = screenWidth - 64, height = 220, c
                     fill="#666"
                     fontWeight="400"
                   >
-                    {line2}
+                    {String(line2 || '')}
                   </SvgText>
                 </G>
               );
@@ -273,7 +276,7 @@ export const SimpleBarChart = ({ data, width = screenWidth - 64, height = 220, c
                   fill="#666"
                   fontWeight="400"
                 >
-                  {labelText}
+                  {String(labelText || '')}
                 </SvgText>
               );
             }
@@ -521,7 +524,7 @@ export const SimpleLineChart = ({ data, width = screenWidth - 64, height = 220, 
                 fill="#555"
                 fontWeight="500"
               >
-                {labelText}
+                {String(labelText || '')}
               </SvgText>
             </G>
           );

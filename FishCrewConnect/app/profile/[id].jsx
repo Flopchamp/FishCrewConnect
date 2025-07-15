@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { jobsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import HeaderBox from '../../components/HeaderBox';
@@ -37,13 +37,13 @@ const ProfileScreen = () => {
       setError(null);
       
       // Get user profile data
-      const profileData = await jobsAPI.getJobOwner(userId);
+      const profileData = await apiService.jobs.getJobOwner(userId);
       console.log('Profile data loaded:', profileData);
       setProfile(profileData);
       
       // Get user's reviews
       try {
-        const reviewsData = await jobsAPI.getOwnerReviews(userId);
+        const reviewsData = await apiService.jobs.getOwnerReviews(userId);
         console.log('Reviews loaded:', reviewsData);
         setReviews(Array.isArray(reviewsData) ? reviewsData : []);
       } catch (reviewError) {

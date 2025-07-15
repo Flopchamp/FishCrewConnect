@@ -99,8 +99,8 @@ const NotificationItem = ({ notification, onMarkAsRead }) => {
       </View>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.message}>{notification.message}</Text>
-        <Text style={styles.time}>{formatTime(notification.created_at)}</Text>
+        <Text style={styles.message}>{notification.message || 'No message content'}</Text>
+        <Text style={styles.time}>{formatTime(notification.created_at || new Date())}</Text>
       </View>
       
       {!notification.is_read && (

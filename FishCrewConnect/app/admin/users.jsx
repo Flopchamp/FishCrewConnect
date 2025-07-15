@@ -506,7 +506,8 @@ const UserManagement = () => {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <SafeScreenWrapper>          <HeaderBox
+        <SafeScreenWrapper>
+          <HeaderBox
             title="User Details"
             leftComponent={
               <TouchableOpacity onPress={() => setUserDetailModal(false)}>
@@ -529,7 +530,8 @@ const UserManagement = () => {
           {selectedUser && (
             <ScrollView style={styles.modalContent}>
               <View style={styles.userDetailCard}>
-                <View style={styles.userDetailHeader}>                  <Text style={styles.userDetailName}>{selectedUser.name}</Text>
+                <View style={styles.userDetailHeader}>
+                  <Text style={styles.userDetailName}>{selectedUser.name}</Text>
                   <View style={[styles.userTypeBadge, { backgroundColor: getUserTypeColor(selectedUser.user_type) }]}>
                     <Text style={styles.userTypeBadgeText}>{selectedUser.user_type}</Text>
                   </View>
@@ -565,7 +567,8 @@ const UserManagement = () => {
                 </View>
               ) : (
                 <View style={styles.statsCard}>
-                  <Text style={styles.statsTitle}>Activity Stats</Text>                  <View style={styles.statsRow}>
+                  <Text style={styles.statsTitle}>Activity Stats</Text>
+                  <View style={styles.statsRow}>
                     <View style={styles.statItem}>
                       <Text style={styles.statNumber}>{selectedUser.applicationCount}</Text>
                       <Text style={styles.statLabel}>Applications</Text>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Alert, ScrollView } from 'react-native';
-import { jobsAPI } from '../services/api';
+import apiService from '../services/api';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import SafeScreenWrapper from '../components/SafeScreenWrapper';
@@ -46,7 +46,7 @@ const CreateJobScreen = () => {
       setIsSubmitting(true);
       
       // Submit job posting
-      await jobsAPI.createJob({
+      await apiService.jobs.createJob({
         ...jobData,
         status: 'open'
       });

@@ -1,8 +1,9 @@
 import { StyleSheet, Text, View, FlatList, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import React, { useState, useEffect, useCallback } from 'react';
-import { applicationsAPI, jobsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
+import DebugTextWrapper from '../../components/DebugTextWrapper';
 import HeaderBox from '../../components/HeaderBox';
 import { useSocketIO } from '../../services/socketService';
 import { useAuth } from '../../context/AuthContext';
@@ -26,13 +27,13 @@ const MyApplicationsScreen = () => {
       
       if (isBoatOwner) {
         // For boat owners: Get all jobs they posted
-        const jobs = await jobsAPI.getMyJobs();
+        const jobs = await apiService.jobs.getMyJobs();
         
         // Then get all applications for those jobs
         if (jobs && jobs.length > 0) {
           // Create promises for all job application requests
           const promises = jobs.map(job => 
-            applicationsAPI.getJobApplications(job.job_id)
+            apiService.applications.getJobApplications(job.job_id)
               .then(apps => apps.map(app => ({
                 ...app,
                 job_title: job.job_title || 'Unknown Job',
@@ -49,7 +50,7 @@ const MyApplicationsScreen = () => {
         }
       } else {
         // For fishermen: Get applications they've submitted
-        newApps = await applicationsAPI.getMyApplications();
+        newApps = await apiService.applications.getMyApplications();
       }
         // Log the loaded applications for debugging
       console.log(`Loaded ${newApps.length} applications for ${isBoatOwner ? 'boat owner' : 'fisherman'}`);
@@ -164,21 +165,42 @@ const MyApplicationsScreen = () => {
   
   return (
     <SafeScreenWrapper>
-      <HeaderBox title={isBoatOwner ? "Received Applications" : "My Applications"} />
-      
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#44DBE9" />
-        </View>
-      ) : (        <FlatList
-          data={applications}
-          keyExtractor={(item) => item.id ? item.id.toString() : Math.random().toString()}
-          renderItem={({ item }) => (
-            <ApplicationItem 
-              application={item} 
-              isOwner={isBoatOwner}
-            />
-          )}
+      <DebugTextWrapper>
+        <HeaderBox title={isBoatOwner ? "Received Applications" : "My Applications"} />
+        
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#44DBE9" />
+          </View>
+        ) : (        <FlatList
+          data={Array.isArray(applications) ? applications.filter(Boolean) : []}
+          keyExtractor={(item, index) => {
+            if (item?.id) return String(item.id);
+            if (item?.application_id) return String(item.application_id);
+            return `application-${index}`;
+          }}
+          renderItem={({ item, index }) => {
+            // Enhanced safety checks for item data
+            if (!item || typeof item !== 'object') {
+              console.warn(`Invalid application item at index ${index}:`, item);
+              return null;
+            }
+            
+            // Additional validation for required fields
+            if (!item.id && !item.application_id) {
+              console.warn(`Application item missing ID at index ${index}:`, item);
+              return null;
+            }
+            
+            return (
+              <DebugTextWrapper>
+                <ApplicationItem 
+                  application={item} 
+                  isOwner={isBoatOwner}
+                />
+              </DebugTextWrapper>
+            );
+          }}
           contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl
@@ -189,7 +211,7 @@ const MyApplicationsScreen = () => {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={48} color="#ccc" />              
+              <Ionicons name="document-text-outline" size={48} color="#ccc" />
               <Text style={styles.emptyText}>
                 {isBoatOwner 
                   ? "You haven't received any applications yet" 
@@ -200,6 +222,7 @@ const MyApplicationsScreen = () => {
           }
         />
       )}
+      </DebugTextWrapper>
     </SafeScreenWrapper>
   );
 };

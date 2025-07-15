@@ -6,9 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 import SafeScreenWrapper from '../../components/SafeScreenWrapper';
 import ProfileCard from '../../components/ProfileCard';
 import ReviewItem from '../../components/ReviewItem';
-import { userAPI, jobsAPI, applicationsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import HeaderBox from '../../components/HeaderBox';
-import socketService from '../../services/socketService';
+import { socketService } from '../../services/socketService';
 
 const ProfileScreen = () => {
   const { user, signOut } = useAuth();
@@ -20,7 +20,10 @@ const ProfileScreen = () => {
     averageRating: 0,
     totalReviews: 0,
     completedJobs: 0,
-    acceptedApplications: 0
+    acceptedApplications: 0,
+    totalEarnings: 0,
+    totalPayments: 0,
+    pendingPayments: 0
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,12 +39,15 @@ const ProfileScreen = () => {
         averageRating: 0,
         totalReviews: 0,
         completedJobs: 0,
-        acceptedApplications: 0
+        acceptedApplications: 0,
+        totalEarnings: 0,
+        totalPayments: 0,
+        pendingPayments: 0
       };
 
       if (userData && userData.user_id) {
         // Get reviews for rating calculation
-        const reviewsData = await userAPI.getUserReviews(userData.user_id);
+        const reviewsData = await apiService.user.getUserReviews(userData.user_id);
         const validReviews = reviewsData || [];
         
         newStats.totalReviews = validReviews.length;
@@ -54,7 +60,7 @@ const ProfileScreen = () => {
         if (userData.user_type === 'boat_owner') {
           // For boat owners: get job statistics
           try {
-            const jobs = await jobsAPI.getMyJobs();
+            const jobs = await apiService.jobs.getMyJobs();
             const jobsArray = Array.isArray(jobs) ? jobs : [];
             newStats.totalJobs = jobsArray.length;
             newStats.completedJobs = jobsArray.filter(job => job.status === 'completed').length;
@@ -64,13 +70,45 @@ const ProfileScreen = () => {
         } else if (userData.user_type === 'fisherman') {
           // For fishermen: get application statistics
           try {
-            const applications = await applicationsAPI.getMyApplications();
+            const applications = await apiService.applications.getMyApplications();
             const appsArray = Array.isArray(applications) ? applications : [];
             newStats.totalApplications = appsArray.length;
             newStats.acceptedApplications = appsArray.filter(app => app.status === 'accepted').length;
           } catch (error) {
             console.log('Could not fetch applications for fisherman:', error);
           }
+        }
+
+        // Get payment statistics
+        try {
+          const paymentsData = await apiService.payments.getPaymentHistory({ page: 1, limit: 100 });
+          const validPayments = paymentsData?.payments || [];
+          
+          newStats.totalPayments = validPayments.length;
+          
+          // Calculate earnings based on user type
+          if (userData.user_type === 'fisherman') {
+            // For fishermen, sum up fisherman_amount from completed payments
+            newStats.totalEarnings = validPayments
+              .filter(payment => payment.status === 'completed')
+              .reduce((sum, payment) => sum + parseFloat(payment.fisherman_amount || 0), 0);
+            
+            // Count pending payments for fishermen
+            newStats.pendingPayments = validPayments.filter(payment => payment.status === 'pending').length;
+          } else if (userData.user_type === 'boat_owner') {
+            // For boat owners, sum up total_amount from completed payments
+            newStats.totalPayments = validPayments
+              .filter(payment => payment.status === 'completed')
+              .reduce((sum, payment) => sum + parseFloat(payment.total_amount || 0), 0);
+            
+            // Show total paid instead of earnings for boat owners
+            newStats.totalEarnings = newStats.totalPayments;
+            
+            // Count pending payments for boat owners
+            newStats.pendingPayments = validPayments.filter(payment => payment.status === 'pending').length;
+          }
+        } catch (error) {
+          console.log('Could not fetch payments:', error);
         }
       }
 
@@ -89,12 +127,12 @@ const ProfileScreen = () => {
       setError(null);
       
       // Fetch user profile data from the backend
-      const userData = await userAPI.getProfile();
+      const userData = await apiService.user.getProfile();
       setProfileData(userData);
       
       // Fetch user reviews and calculate stats
       if (userData && userData.user_id) {
-        const reviewsData = await userAPI.getUserReviews(userData.user_id);
+        const reviewsData = await apiService.user.getUserReviews(userData.user_id);
         setReviews(reviewsData || []);
         
         // Calculate statistics
@@ -268,6 +306,14 @@ const ProfileScreen = () => {
                   <Text style={styles.statNumber}>{stats.completedJobs}</Text>
                   <Text style={styles.statLabel}>Completed</Text>
                 </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>KSH {stats.totalEarnings.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Total Paid</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{stats.pendingPayments}</Text>
+                  <Text style={styles.statLabel}>Pending Payments</Text>
+                </View>
               </>
             ) : (
               <>
@@ -278,6 +324,14 @@ const ProfileScreen = () => {
                 <View style={styles.statItem}>
                   <Text style={styles.statNumber}>{stats.acceptedApplications}</Text>
                   <Text style={styles.statLabel}>Accepted</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>KSH {stats.totalEarnings.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Total Earned</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{stats.pendingPayments}</Text>
+                  <Text style={styles.statLabel}>Pending Payments</Text>
                 </View>
               </>
             )}
@@ -298,23 +352,45 @@ const ProfileScreen = () => {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           
           {user?.user_type === 'boat_owner' ? (
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/create-job')}
-            >
-              <Ionicons name="add-circle-outline" size={24} color="#44DBE9" />
-              <Text style={styles.actionText}>Post New Job</Text>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push('/create-job')}
+              >
+                <Ionicons name="add-circle-outline" size={24} color="#44DBE9" />
+                <Text style={styles.actionText}>Post New Job</Text>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push('/payment-history')}
+              >
+                <Ionicons name="card-outline" size={24} color="#4CAF50" />
+                <Text style={styles.actionText}>Payment History</Text>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+            </>
           ) : (
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => router.push('/(tabs)/')}
-            >
-              <Ionicons name="search-outline" size={24} color="#44DBE9" />
-              <Text style={styles.actionText}>Browse Jobs</Text>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push('/(tabs)/')}
+              >
+                <Ionicons name="search-outline" size={24} color="#44DBE9" />
+                <Text style={styles.actionText}>Browse Jobs</Text>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => router.push('/payment-history')}
+              >
+                <Ionicons name="card-outline" size={24} color="#4CAF50" />
+                <Text style={styles.actionText}>Payment History</Text>
+                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+              </TouchableOpacity>
+            </>
           )}
           
           <TouchableOpacity 
@@ -346,13 +422,22 @@ const ProfileScreen = () => {
         {/* Support Section */}
         <View style={styles.supportCard}>
           <Text style={styles.supportTitle}>Need Help?</Text>
-          <Text style={styles.supportText}>Contact our support team for assistance</Text>
+          <Text style={styles.supportText}>Access user guides and get support</Text>
+          
           <TouchableOpacity 
             style={styles.supportButton}
+            onPress={() => router.push('/help-center')}
+          >
+            <Ionicons name="help-circle-outline" size={20} color="#44DBE9" />
+            <Text style={styles.supportButtonText}>Help Center</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.supportButton, { marginTop: 8 }]}
             onPress={handleSupportContact}
           >
             <Ionicons name="mail-outline" size={20} color="#44DBE9" />
-            <Text style={styles.supportButtonText}>Contact Support</Text>
+            <Text style={styles.supportButtonText}>Email Support</Text>
           </TouchableOpacity>
         </View>
         

@@ -96,7 +96,8 @@ const SignIn = () => {
         source={require('../../../assets/images/icon.png')} 
         style={styles.logo}
         resizeMode="contain"
-      />      <Text style={styles.title}>Welcome Back!</Text>
+      />
+      <Text style={styles.title}>Welcome Back!</Text>
       <Text style={styles.subtitle}>Already part of the crew? Sign in and get fishing</Text>
 
       <TextInput
@@ -107,13 +108,16 @@ const SignIn = () => {
         keyboardType="email-address"
         autoCapitalize="none"
       />
+      
       <TextInput
         style={styles.input}
         placeholder="Password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-      />      <TouchableOpacity onPress={handleForgotPassword}>
+      />
+      
+      <TouchableOpacity onPress={handleForgotPassword}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
@@ -127,7 +131,9 @@ const SignIn = () => {
         ) : (
           <Text style={styles.signInButtonText}>Sign In</Text>
         )}
-      </TouchableOpacity>      <TouchableOpacity onPress={() => router.push('/(auth)/sign-up/signUp')}>
+      </TouchableOpacity>
+      
+      <TouchableOpacity onPress={() => router.push('/(auth)/sign-up/signUp')}>
         <Text style={styles.signUpText}>Don&#39;t have an account? Sign Up</Text>
       </TouchableOpacity>
     </View>
@@ -188,7 +194,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  },  signUpText: {
+  },
+  signUpText: {
     color: '#44DBE9',
     textAlign: 'center',
     fontSize: 16,

@@ -1,6 +1,6 @@
 import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Text } from 'react-native';
 import React, { useState, useEffect, useCallback } from 'react';
-import { jobsAPI } from '../../services/api';
+import apiService from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -24,11 +24,11 @@ const JobsScreen = () => {
       // Load different jobs based on user type
       if (user && user.user_type === 'boat_owner') {
         // Boat owners see their own posted jobs
-        const jobsData = await jobsAPI.getMyJobs();
+        const jobsData = await apiService.jobs.getMyJobs();
         setJobs(jobsData);
       } else {
         // Fishermen (crew) see all available jobs
-        const jobsData = await jobsAPI.getAllJobs();
+        const jobsData = await apiService.jobs.getAllJobs();
         setJobs(jobsData);
       }
     } catch (error) {
@@ -100,15 +100,23 @@ const JobsScreen = () => {
   return (
     <SafeScreenWrapper>
       <HeaderBox title="Jobs">
-        {user && user.user_type === 'boat_owner' && (
+        <View style={styles.headerButtons}>
           <TouchableOpacity 
-            style={styles.createJobButton}
-            onPress={() => router.push('/create-job')}
+            style={styles.helpButton}
+            onPress={() => router.push('/help-center')}
           >
-            <Ionicons name="add-circle-outline" size={24} color="#0077B6" />
-            <Text style={styles.createJobButtonText}>Post Job</Text>
+            <Ionicons name="help-circle-outline" size={24} color="#0077B6" />
           </TouchableOpacity>
-        )}
+          {user && user.user_type === 'boat_owner' && (
+            <TouchableOpacity 
+              style={styles.createJobButton}
+              onPress={() => router.push('/create-job')}
+            >
+              <Ionicons name="add-circle-outline" size={24} color="#0077B6" />
+              <Text style={styles.createJobButtonText}>Post Job</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </HeaderBox>
       <View style={styles.searchContainer}>
         <FormInput
@@ -266,6 +274,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  helpButton: {
+    padding: 8,
   },
 });
 

@@ -340,11 +340,11 @@ const EditProfileScreen = () => {
           inputProps={{
             textAlignVertical: 'top',
             numberOfLines: 5,
-            minHeight: 5,
+            minHeight: 100,
           }}
         />
         
-        <View style={styles.buttonContainer}paddingBottom={50}>
+        <View style={[styles.buttonContainer, { paddingBottom: 50 }]}>
           <CustomButton
             title="Save Changes"
             onPress={handleSave}

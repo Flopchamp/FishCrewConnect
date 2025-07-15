@@ -6,9 +6,10 @@ const AuthOptions = () => {
   const router = useRouter();
 
   const handleCreateAccount = () => {
-    router.push('/(auth)/sign-up/signUp'); // Navigate to your existing sign-up screen
-  };const handleAdminSignUp = () => {
-    // Navigate to sign-up with admin role parameter
+    router.push('/(auth)/sign-up/signUp');
+  };
+
+  const handleAdminSignUp = () => {
     router.push({
       pathname: '/(auth)/sign-up/signUp',
       params: { userRole: 'admin' },
@@ -22,15 +23,24 @@ const AuthOptions = () => {
         style={styles.logo}
         resizeMode="contain"
       />
-      <Text style={styles.title}>Welcome to FishCrew Connect</Text>      <Text style={styles.subtitle}>Find your next catch or crew member</Text>
+      <Text style={styles.title}>Welcome to FishCrew Connect</Text>
+      <Text style={styles.subtitle}>Find your next catch or crew member</Text>
       
-      <TouchableOpacity style={styles.createAccountButton} onPress={() => router.push('/(auth)/sign-in/sign-in')}>
+      <TouchableOpacity 
+        style={styles.createAccountButton} 
+        onPress={() => router.push('/(auth)/sign-in/sign-in')}
+      >
         <Text style={styles.createAccountButtonText}>Sign In</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity style={styles.createAccountButton} onPress={handleCreateAccount}>
+      <TouchableOpacity 
+        style={styles.createAccountButton} 
+        onPress={handleCreateAccount}
+      >
         <Text style={styles.createAccountButtonText}>Create Account</Text>
-      </TouchableOpacity>        <View style={styles.boatOwnerContainer}>
+      </TouchableOpacity>
+      
+      <View style={styles.boatOwnerContainer}>
         <Text style={styles.boatOwnerText}>Are you an admin? </Text>
         <TouchableOpacity onPress={handleAdminSignUp}>
           <Text style={styles.boatOwnerLink}>Sign up here</Text>
@@ -61,7 +71,8 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
     marginBottom: 10,
-  },  subtitle: {
+  },
+  subtitle: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
@@ -96,11 +107,5 @@ const styles = StyleSheet.create({
     color: '#44DBE9',
     fontWeight: 'bold',
     marginLeft: 5,
-  },
-  signInLinkContainer: {
-    marginTop: 20,
-  },  signInLink: {
-    fontSize: 14,
-    color: '#44DBE9',
   },
 });
