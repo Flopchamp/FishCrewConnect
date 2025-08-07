@@ -44,7 +44,7 @@ A modern, responsive web-based administration panel for the FishCrewConnect plat
 3. **Configure environment variables:**
    Create a `.env` file in the root directory:
    ```env
-   VITE_API_BASE_URL=http://localhost:3000/api
+   VITE_API_BASE_URL=http://localhost:3001
    VITE_APP_TITLE=FishCrewConnect Admin
    ```
 
@@ -120,13 +120,13 @@ The dashboard connects to the existing FishCrewConnect backend API. Key endpoint
 
 ### Development (.env)
 ```env
-VITE_API_BASE_URL=http://localhost:3000/api
+VITE_API_BASE_URL=http://localhost:3001
 VITE_APP_TITLE=FishCrewConnect Admin
 ```
 
 ### Production (.env.production)
 ```env
-VITE_API_BASE_URL=https://your-production-api.com/api
+VITE_API_BASE_URL=https://your-production-api.com
 VITE_APP_TITLE=FishCrewConnect Admin
 ```
 

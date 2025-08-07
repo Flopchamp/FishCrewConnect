@@ -138,6 +138,16 @@ export const adminAPI = {
     return response.data;
   },
   
+  getPaymentAnalytics: async (params) => {
+    const response = await api.get('/api/admin/payments/analytics', { params });
+    return response.data;
+  },
+  
+  getCommissionAnalytics: async (params) => {
+    const response = await api.get('/api/admin/payments/commission-analytics', { params });
+    return response.data;
+  },
+  
   // Settings
   getSystemSettings: async () => {
     const response = await api.get('/api/admin/settings');
