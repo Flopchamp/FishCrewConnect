@@ -12,6 +12,10 @@ import {
   CheckCircle,
   XCircle,
   Calendar,
+  Play,
+  UserCheck,
+  Ban,
+  AlertCircle,
 } from 'lucide-react';
 
 const JobsPage = () => {
@@ -26,6 +30,18 @@ const JobsPage = () => {
     total: 0,
   });
   const [stats, setStats] = useState({});
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showJobModal, setShowJobModal] = useState(false);
+
+  // Job status options matching mobile app
+  const jobStatuses = [
+    { label: 'All Jobs', value: 'all' },
+    { label: 'Open', value: 'open' },
+    { label: 'In Progress', value: 'in_progress' },
+    { label: 'Filled', value: 'filled' },
+    { label: 'Completed', value: 'completed' },
+    { label: 'Cancelled', value: 'cancelled' }
+  ];
 
   useEffect(() => {
     loadJobs();
@@ -43,10 +59,10 @@ const JobsPage = () => {
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
 
-      const data = await adminAPI.getAllJobs(params);
-      setJobs(data.jobs || []);
-      setPagination(data.pagination || {});
-      setStats(data.stats || {});
+      const response = await adminAPI.getAllJobs(params);
+      setJobs(response.jobs || []);
+      setPagination(response.pagination || {});
+      setStats(response.stats || {});
     } catch (error) {
       toast.error('Failed to load jobs');
       console.error('Error loading jobs:', error);
@@ -55,25 +71,19 @@ const JobsPage = () => {
     }
   };
 
-  const handleApproveJob = async (jobId) => {
-    try {
-      await adminAPI.approveJob(jobId, 'Approved by admin');
-      toast.success('Job approved successfully');
-      loadJobs();
-    } catch (error) {
-      toast.error('Failed to approve job');
-      console.error('Error approving job:', error);
-    }
-  };
-
-  const handleRejectJob = async (jobId, reason = 'Rejected by admin') => {
-    try {
-      await adminAPI.rejectJob(jobId, reason);
-      toast.success('Job rejected successfully');
-      loadJobs();
-    } catch (error) {
-      toast.error('Failed to reject job');
-      console.error('Error rejecting job:', error);
+  const handleJobStatusUpdate = async (jobId, status, jobTitle) => {
+    const statusText = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+    
+    if (window.confirm(`Are you sure you want to mark "${jobTitle}" as ${statusText}?`)) {
+      try {
+        await adminAPI.updateJobStatus(jobId, status, `Status updated to ${status} by admin`);
+        toast.success(`Job status updated to ${statusText} successfully`);
+        loadJobs();
+        setShowJobModal(false);
+      } catch (error) {
+        toast.error('Failed to update job status');
+        console.error('Error updating job status:', error);
+      }
     }
   };
 
@@ -96,12 +106,12 @@ const JobsPage = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      active: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle },
+      open: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      in_progress: { color: 'bg-blue-100 text-blue-800', icon: Play },
+      filled: { color: 'bg-yellow-100 text-yellow-800', icon: UserCheck },
       completed: { color: 'bg-purple-100 text-purple-800', icon: CheckCircle },
-      rejected: { color: 'bg-red-100 text-red-800', icon: XCircle },
-      expired: { color: 'bg-gray-100 text-gray-800', icon: XCircle },
+      cancelled: { color: 'bg-red-100 text-red-800', icon: Ban },
+      pending: { color: 'bg-gray-100 text-gray-800', icon: Clock },
     };
 
     const config = statusConfig[status] || statusConfig.pending;
@@ -110,7 +120,7 @@ const JobsPage = () => {
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
         <IconComponent className="h-3 w-3 mr-1" />
-        {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown'}
+        {status ? status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ') : 'Unknown'}
       </span>
     );
   };
@@ -120,6 +130,124 @@ const JobsPage = () => {
     const start = new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const end = new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `${start} - ${end}`;
+  };
+
+  const JobDetailModal = () => {
+    if (!selectedJob) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between p-6 border-b">
+            <h3 className="text-lg font-semibold text-gray-900">Job Details</h3>
+            <button
+              onClick={() => setShowJobModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <XCircle className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Job Information */}
+          <div className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <h4 className="text-xl font-semibold text-gray-900">{selectedJob.job_title}</h4>
+              {getStatusBadge(selectedJob.status)}
+            </div>
+
+            <p className="text-gray-600 mb-6">{selectedJob.description}</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Posted by</label>
+                <p className="text-gray-900">{selectedJob.posted_by || selectedJob.owner_name}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Location</label>
+                <p className="text-gray-900">{selectedJob.location}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Payment</label>
+                <p className="text-gray-900">
+                  {selectedJob.payment_details || formatCurrency(selectedJob.payment_amount)}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Duration</label>
+                <p className="text-gray-900">{selectedJob.job_duration || 'Not specified'}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Application Deadline</label>
+                <p className="text-gray-900">
+                  {selectedJob.application_deadline ? formatDate(selectedJob.application_deadline) : 'Not specified'}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Applications</label>
+                <p className="text-gray-900">{selectedJob.application_count || selectedJob.applications_count || 0}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-500">Posted Date</label>
+                <p className="text-gray-900">{formatDate(selectedJob.created_at)}</p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <h5 className="font-medium text-gray-900 mb-3">Update Job Status</h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <button
+                  onClick={() => handleJobStatusUpdate(selectedJob.job_id, 'open', selectedJob.job_title)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Mark Open
+                </button>
+                
+                <button
+                  onClick={() => handleJobStatusUpdate(selectedJob.job_id, 'in_progress', selectedJob.job_title)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  <Play className="h-4 w-4" />
+                  In Progress
+                </button>
+                
+                <button
+                  onClick={() => handleJobStatusUpdate(selectedJob.job_id, 'filled', selectedJob.job_title)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  Mark Filled
+                </button>
+                
+                <button
+                  onClick={() => handleJobStatusUpdate(selectedJob.job_id, 'completed', selectedJob.job_title)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Complete
+                </button>
+                
+                <button
+                  onClick={() => handleJobStatusUpdate(selectedJob.job_id, 'cancelled', selectedJob.job_title)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  <Ban className="h-4 w-4" />
+                  Cancel Job
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -133,21 +261,25 @@ const JobsPage = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="text-2xl font-semibold text-gray-900">{stats.total || 0}</div>
           <div className="text-sm text-gray-500">Total Jobs</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-blue-600">{stats.active || 0}</div>
-          <div className="text-sm text-gray-500">Active Jobs</div>
+          <div className="text-2xl font-semibold text-green-600">{stats.open || 0}</div>
+          <div className="text-sm text-gray-500">Open</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-yellow-600">{stats.pending || 0}</div>
-          <div className="text-sm text-gray-500">Pending Approval</div>
+          <div className="text-2xl font-semibold text-blue-600">{stats.in_progress || 0}</div>
+          <div className="text-sm text-gray-500">In Progress</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-green-600">{stats.completed || 0}</div>
+          <div className="text-2xl font-semibold text-yellow-600">{stats.filled || 0}</div>
+          <div className="text-sm text-gray-500">Filled</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="text-2xl font-semibold text-purple-600">{stats.completed || 0}</div>
           <div className="text-sm text-gray-500">Completed</div>
         </div>
       </div>
@@ -160,7 +292,7 @@ const JobsPage = () => {
               <Search className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search jobs by title, description, or location..."
+                placeholder="Search jobs by title, description, or poster..."
                 className="input pl-10 w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -172,12 +304,11 @@ const JobsPage = () => {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="rejected">Rejected</option>
+            {jobStatuses.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
           </select>
           <select
             className="input"
@@ -208,7 +339,7 @@ const JobsPage = () => {
                     Job Details
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Boat Owner
+                    Posted By
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Payment
@@ -233,7 +364,7 @@ const JobsPage = () => {
                           {job.job_title}
                         </div>
                         <div className="text-sm text-gray-500 mb-2 line-clamp-2">
-                          {job.job_description}
+                          {job.description}
                         </div>
                         <div className="flex items-center text-xs text-gray-500 gap-4">
                           <div className="flex items-center">
@@ -242,7 +373,7 @@ const JobsPage = () => {
                           </div>
                           <div className="flex items-center">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {formatDateRange(job.start_date, job.end_date)}
+                            {formatDate(job.created_at)}
                           </div>
                         </div>
                       </div>
@@ -250,7 +381,7 @@ const JobsPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {job.owner_name}
+                          {job.posted_by || job.owner_name}
                         </div>
                         <div className="text-sm text-gray-500">
                           {job.owner_email}
@@ -259,42 +390,31 @@ const JobsPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {formatCurrency(job.payment_amount)}
+                        {job.payment_details || formatCurrency(job.payment_amount)}
                       </div>
                       <div className="text-sm text-gray-500">
                         {job.payment_frequency}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(job.job_status)}
+                      {getStatusBadge(job.status || job.job_status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
                         <Users className="h-4 w-4 mr-1" />
-                        {job.applications_count || 0}
+                        {job.application_count || job.applications_count || 0}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        {job.job_status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleApproveJob(job.job_id)}
-                              className="text-green-600 hover:text-green-900"
-                              title="Approve Job"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleRejectJob(job.job_id)}
-                              className="text-red-600 hover:text-red-900"
-                              title="Reject Job"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-                        <button className="text-gray-400 hover:text-gray-600" title="View Details">
+                        <button
+                          onClick={() => {
+                            setSelectedJob(job);
+                            setShowJobModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Details"
+                        >
                           <Eye className="h-4 w-4" />
                         </button>
                       </div>
@@ -333,6 +453,9 @@ const JobsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Job Detail Modal */}
+      {showJobModal && <JobDetailModal />}
     </div>
   );
 };
