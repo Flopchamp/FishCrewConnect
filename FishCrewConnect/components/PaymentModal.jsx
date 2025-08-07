@@ -20,7 +20,7 @@ const PaymentModal = ({
   onPaymentSuccess 
 }) => {
   const [amount, setAmount] = useState('');
-  const [fishermanPhone, setFishermanPhone] = useState(applicationData?.applicant_phone || '');
+  const [boatOwnerPhone, setBoatOwnerPhone] = useState(''); // Changed from fishermanPhone
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState('form'); // 'form', 'processing', 'success'
   const [paymentData, setPaymentData] = useState(null);
@@ -38,7 +38,7 @@ const PaymentModal = ({
   const handlePhoneChange = (text) => {
     // Remove non-numeric characters and format
     const numericValue = text.replace(/[^0-9]/g, '');
-    setFishermanPhone(numericValue);
+    setBoatOwnerPhone(numericValue);
   };
 
   const validateForm = () => {
@@ -47,7 +47,7 @@ const PaymentModal = ({
       return false;
     }
 
-    if (!fishermanPhone || fishermanPhone.length < 10) {
+    if (!boatOwnerPhone || boatOwnerPhone.length < 10) {
       Alert.alert('Invalid Phone Number', 'Please enter a valid phone number.');
       return false;
     }
@@ -66,16 +66,21 @@ const PaymentModal = ({
         jobId: jobData.job_id,
         applicationId: applicationData.id,
         amount: parseInt(amount),
-        fishermanPhoneNumber: fishermanPhone
+        boatOwnerPhoneNumber: boatOwnerPhone
       };
 
       const result = await apiService.payments.initiateJobPayment(paymentRequest);
       
       setPaymentData(result);
       
+      const alertTitle = result.isDemoMode ? 'Demo Payment Initiated' : 'Payment Initiated';
+      const alertMessage = result.isDemoMode 
+        ? `Demo Payment: KSH ${formatCurrency(amount)} initiated. This is using test M-Pesa credentials. The payment will be automatically completed in 3 seconds to demonstrate the flow.`
+        : `Payment of KSH ${formatCurrency(amount)} has been initiated. The fisherman will receive KSH ${formatCurrency(result.fishermanAmount.toString())} after platform commission (${result.commissionRate}).`;
+      
       Alert.alert(
-        'Payment Initiated',
-        `Payment of KSH ${formatCurrency(amount)} has been initiated. The fisherman will receive KSH ${formatCurrency(result.fishermanAmount.toString())} after platform commission (${result.commissionRate}).`,
+        alertTitle,
+        alertMessage,
         [
           {
             text: 'OK',
@@ -108,7 +113,7 @@ const PaymentModal = ({
 
   const resetModal = () => {
     setAmount('');
-    setFishermanPhone(applicationData?.applicant_phone || '');
+    setBoatOwnerPhone('');
     setStep('form');
     setPaymentData(null);
     setLoading(false);
@@ -151,17 +156,25 @@ const PaymentModal = ({
           </Text>
         </View>
 
+        {/* Demo Mode Indicator */}
+        <View style={styles.demoModeIndicator}>
+          <Ionicons name="information-circle" size={20} color="#FF9800" />
+          <Text style={styles.demoModeText}>
+            Demo Mode: Using test M-Pesa credentials for demonstration
+          </Text>
+        </View>
+
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Fisherman&apos;s Phone Number</Text>
+          <Text style={styles.label}>Your Phone Number (Boat Owner)</Text>
           <TextInput
             style={styles.input}
-            value={fishermanPhone}
+            value={boatOwnerPhone}
             onChangeText={handlePhoneChange}
             placeholder="254XXXXXXXXX"
             keyboardType="numeric"
           />
           <Text style={styles.hint}>
-            M-Pesa payment request will be sent to this number
+            M-Pesa payment request will be sent to your phone to pay the fisherman
           </Text>
         </View>
 
@@ -225,7 +238,7 @@ const PaymentModal = ({
         <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
         <Text style={styles.successTitle}>Payment Initiated!</Text>
         <Text style={styles.successText}>
-          M-Pesa payment request has been sent. The fisherman will receive the payment once they complete the transaction.
+          M-Pesa payment request has been sent to your phone. Complete the payment to pay the fisherman.
         </Text>
         
         {paymentData && (
@@ -475,6 +488,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  demoModeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  demoModeText: {
+    fontSize: 14,
+    color: '#E65100',
+    marginLeft: 8,
+    flex: 1,
+    fontWeight: '500',
   },
 });
 
