@@ -422,7 +422,36 @@ exports.getAllJobs = async (req, res) => {
         }
 
         // Get total count
-        const [totalCount] = await db.query(`SELECT COUNT(*) as total FROM jobs j${whereClause}`, queryParams);        // Get jobs with user information
+        const [totalCount] = await db.query(`SELECT COUNT(*) as total FROM jobs j${whereClause}`, queryParams);
+        
+        // Get status statistics
+        const [statusStats] = await db.query(`
+            SELECT 
+                status,
+                COUNT(*) as count 
+            FROM jobs 
+            GROUP BY status
+        `);
+        
+        // Format stats object
+        const stats = {
+            total: totalCount[0].total,
+            open: 0,
+            in_progress: 0,
+            filled: 0,
+            completed: 0,
+            cancelled: 0,
+            pending: 0
+        };
+        
+        statusStats.forEach(stat => {
+            const status = stat.status || 'pending';
+            if (stats.hasOwnProperty(status)) {
+                stats[status] = stat.count;
+            }
+        });
+        
+        // Get jobs with user information
         const [jobs] = await db.query(`
             SELECT 
                 j.job_id,
@@ -445,10 +474,11 @@ exports.getAllJobs = async (req, res) => {
 
         res.json({
             jobs,
+            stats,
             pagination: {
-                currentPage: page,
-                totalPages: Math.ceil(totalCount[0].total / limit),
-                totalJobs: totalCount[0].total,
+                current_page: page,
+                total_pages: Math.ceil(totalCount[0].total / limit),
+                total: totalCount[0].total,
                 limit
             }
         });
