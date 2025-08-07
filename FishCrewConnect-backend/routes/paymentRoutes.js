@@ -34,4 +34,27 @@ router.post('/daraja/result', paymentController.handleB2CResult);
 // @access  Public (M-Pesa callback)
 router.post('/daraja/timeout', paymentController.handleTimeout);
 
+// @route   GET /api/payments/test
+// @desc    Test basic payment route
+// @access  Public
+router.get('/test', (req, res) => {
+    res.json({
+        message: 'Payment routes working',
+        timestamp: new Date().toISOString(),
+        demoMode: process.env.DARAJA_DEMO_MODE === 'true' || process.env.NODE_ENV === 'development'
+    });
+});
+
+// @route   GET /api/payments/test-auth
+// @desc    Test authentication middleware
+// @access  Private
+router.get('/test-auth', authMiddleware, (req, res) => {
+    res.json({
+        message: 'Authentication working',
+        user: req.user,
+        userId: req.user?.id,
+        userType: req.user?.user_type
+    });
+});
+
 module.exports = router;

@@ -53,6 +53,13 @@ Project/
 - Application tracking and status management
 - Integration with messaging system
 
+### ✅ **M-Pesa Payment Integration**
+- **Demo Mode**: Test payments using provided M-Pesa credentials
+- **Real Payments**: Production-ready Daraja API integration
+- **Auto-Commission**: Platform commission automatically calculated
+- **Payment Tracking**: Complete transaction history and status
+- **Secure Processing**: Encrypted payment data and callbacks
+
 ## 🚀 Quick Start
 
 ### 1. Backend Setup
@@ -60,6 +67,7 @@ Project/
 cd FishCrewConnect-backend
 npm install
 # Configure .env file with database settings
+# Set DARAJA_DEMO_MODE=true for testing
 npm start
 ```
 
@@ -75,6 +83,12 @@ npm start
 - Run migration scripts in `backend/scripts/`
 - Configure connection in backend `.env` file
 
+### 4. Demo Payment Testing
+```bash
+cd FishCrewConnect-backend
+npm run test-demo-payment
+```
+
 ## 🧪 Testing
 
 ### Backend Testing
@@ -84,12 +98,22 @@ node test-contacts-filtering.js
 node test-email-validation.js
 ```
 
+### M-Pesa Demo Testing
+```bash
+# Test demo payment integration
+npm run test-demo-payment
+
+# Or follow the mobile app demo flow:
+# 1. Create job → 2. Apply → 3. Accept → 4. Complete → 5. Pay
+```
+
 ### Manual Testing Flow
 1. Register users (fishermen and boat owners)
 2. Verify input validation works
 3. Test password reset functionality
 4. Create jobs and applications
 5. Verify contacts filtering
+6. **Test demo payments with provided M-Pesa credentials**
 
 ## 🔐 Security Features
 
