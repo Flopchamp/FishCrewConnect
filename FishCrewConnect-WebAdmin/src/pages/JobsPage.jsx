@@ -74,17 +74,50 @@ const JobsPage = () => {
   const handleJobStatusUpdate = async (jobId, status, jobTitle) => {
     const statusText = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
     
-    if (window.confirm(`Are you sure you want to mark "${jobTitle}" as ${statusText}?`)) {
-      try {
-        await adminAPI.updateJobStatus(jobId, status, `Status updated to ${status} by admin`);
-        toast.success(`Job status updated to ${statusText} successfully`);
-        loadJobs();
-        setShowJobModal(false);
-      } catch (error) {
-        toast.error('Failed to update job status');
-        console.error('Error updating job status:', error);
-      }
-    }
+    // Modern toast confirmation
+    toast((t) => (
+      <div className="flex flex-col gap-3 min-w-[300px]">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-gray-900">Confirm Status Update</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Are you sure you want to mark <span className="font-medium">"{jobTitle}"</span> as <span className="font-medium">{statusText}</span>?
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                toast.loading('Updating job status...', { id: 'status-update' });
+                await adminAPI.updateJobStatus(jobId, status, `Status updated to ${status} by admin`);
+                toast.success(`Job status updated to ${statusText} successfully`, { id: 'status-update' });
+                loadJobs();
+                setShowJobModal(false);
+              } catch (error) {
+                toast.error('Failed to update job status', { id: 'status-update' });
+                console.error('Error updating job status:', error);
+              }
+            }}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity,
+      position: 'top-center',
+      className: 'bg-white border border-gray-200 shadow-lg rounded-lg',
+    });
   };
 
   const formatDate = (dateString) => {
