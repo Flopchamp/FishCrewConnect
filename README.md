@@ -1,6 +1,6 @@
 #  FishCrewConnect Platform
 
-A comprehensive platform connecting fishermen with boat owners for professional job opportunities.
+FishCrewConnect is a production-ready platform connecting fishermen with boat owners for professional job opportunities. This repository contains a frontend (Expo/React Native mobile app and a Web Admin surface), and a Node.js backend API.
 
 ## Platform Features
 
