@@ -1,24 +1,33 @@
-# 🐟 FishCrewConnect Platform
+# 🐟 FishCrewConnect — Platform Overview
 
-A comprehensive platform connecting fishermen with boat owners for professional job opportunities.
+FishCrewConnect is a production-ready platform connecting fishermen with boat owners for professional job opportunities. This repository contains a frontend (Expo/React Native mobile app and a Web Admin surface), and a Node.js backend API.
 
-## 📁 Project Structure
+This project is being prepared for a frontend-first modernization: clean, reusable component patterns (Tailwind/NativeWind + shadcn-like primitives), accessible UI, smooth interactions, and deployable web admin frontend — similar in spirit to modern projects like "Whispering Pages" which emphasize component-driven UX, readable typography, and polished interactions.
+
+## Goals for this modernization
+
+- Build a responsive, elegant UI following Tailwind/NativeWind and shadcn-ui patterns
+- Create reusable, accessible UI primitives (atoms → molecules → screens)
+- Add global theme & font-size controls and smooth transitions
+- Optimize API usage, lazy-load heavy assets, and improve perceived performance
+- Provide a Vercel deployment for the WebAdmin and an Expo/EAS workflow for mobile builds
+
+## 📁 Project Structure (short)
 
 ```
 Project/
-├── FishCrewConnect/           # 📱 React Native Mobile App
-│   ├── app/                   # Screen components
-│   ├── components/            # Reusable UI components
-│   ├── services/              # API service layer
-│   └── ...                    # Configuration and assets
+├── FishCrewConnect/           # 📱 Expo React Native Mobile App (NativeWind + Tailwind)
+│   ├── app/                   # Screens and routes
+│   ├── components/            # Reusable UI components (atoms & molecules)
+│   ├── services/              # API wrappers and helpers
+│   └── ...                    # Config, assets, fonts
 │
-└── FishCrewConnect-backend/   # 🖥️ Node.js Backend API
-    ├── controllers/           # Business logic handlers
-    ├── routes/                # API route definitions
-    ├── middleware/            # Auth and validation
-    ├── tests/                 # Test files
-    ├── docs/                  # Documentation
-    └── ...                    # Configuration and scripts
+├── FishCrewConnect-backend/   # 🖥️ Node.js Backend API (Express)
+│   ├── controllers/
+│   ├── routes/
+│   └── middleware/
+│
+└── FishCrewConnect-WebAdmin/  # 🌐 Vite React Web Admin (deployable to Vercel)
 ```
 
 ## 🌟 Platform Features
