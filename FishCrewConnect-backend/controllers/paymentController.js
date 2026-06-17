@@ -27,38 +27,30 @@ exports.initiateJobPayment = async (req, res) => {
     const { jobId, applicationId, amount, boatOwnerPhoneNumber } = req.body;
     const boatOwnerId = req.user?.id;
 
-    console.log('Payment initiation request:', {
-        jobId,
-        applicationId,
-        amount,
-        boatOwnerPhoneNumber,
-        boatOwnerId,
-        userObject: req.user
-    });
-
     try {
         // Validate required fields
         if (!jobId || !applicationId || !amount || !boatOwnerPhoneNumber) {
-            return res.status(400).json({ 
-                message: 'Missing required fields: jobId, applicationId, amount, boatOwnerPhoneNumber' 
+            return res.status(400).json({
+                message: 'Missing required fields: jobId, applicationId, amount, boatOwnerPhoneNumber'
             });
         }
 
         // Validate user authentication
         if (!boatOwnerId) {
-            return res.status(401).json({ 
-                message: 'Authentication required. Please log in again.' 
+            return res.status(401).json({
+                message: 'Authentication required. Please log in again.'
             });
         }
 
-        // Validate amount
-        if (isNaN(amount) || amount <= 0) {
-            return res.status(400).json({ 
-                message: 'Invalid amount. Amount must be a positive number.' 
+        // Validate amount (positive, numeric, within safe bounds)
+        const MAX_PAYMENT_AMOUNT = 1000000; // KSH 1,000,000
+        if (isNaN(amount) || amount <= 0 || amount > MAX_PAYMENT_AMOUNT) {
+            return res.status(400).json({
+                message: `Invalid amount. Must be between 1 and ${MAX_PAYMENT_AMOUNT}.`
             });
         }
+
         // Validate boat owner owns the job
-        console.log('Querying for job and application...');
         const [jobs] = await db.query(
             'SELECT j.*, ja.user_id as fisherman_id, ja.status, u.name as fisherman_name, u.contact_number as fisherman_phone FROM jobs j ' +
             'JOIN job_applications ja ON j.job_id = ja.job_id ' +
@@ -67,52 +59,28 @@ exports.initiateJobPayment = async (req, res) => {
             [jobId, boatOwnerId, applicationId]
         );
 
-        console.log('Query result:', jobs);
-
         if (jobs.length === 0) {
-            console.log('No job found or not authorized');
-            return res.status(404).json({ 
-                message: 'Job not found, not authorized, or application not accepted',
-                details: process.env.NODE_ENV === 'development' ? {
-                    jobId,
-                    boatOwnerId,
-                    applicationId
-                } : undefined
+            return res.status(404).json({
+                message: 'Job not found, not authorized, or application not accepted'
             });
         }
 
         const job = jobs[0];
-        console.log('Found job:', job);
-        
+
         // Check if payment already exists for this job application
-        console.log('Checking for existing payments...');
         const [existingPayments] = await db.query(
             'SELECT * FROM job_payments WHERE job_id = ? AND application_id = ? AND status != "failed"',
             [jobId, applicationId]
         );
 
-        console.log('Existing payments:', existingPayments);
-
         if (existingPayments.length > 0) {
-            console.log('Payment already exists');
             return res.status(400).json({ message: 'Payment already initiated for this job' });
         }
 
-        // Calculate platform commission
-        console.log('Calculating commission...');
         const commissionRate = await getPlatformCommissionRate();
         const platformCommission = amount * commissionRate;
         const fishermanAmount = amount - platformCommission;
 
-        console.log('Payment breakdown:', {
-            amount,
-            commissionRate,
-            platformCommission,
-            fishermanAmount
-        });
-
-        // Create payment record
-        console.log('Creating payment record...');
         const [paymentResult] = await db.query(
             `INSERT INTO job_payments (
                 job_id, application_id, boat_owner_id, fisherman_id, 
@@ -123,7 +91,6 @@ exports.initiateJobPayment = async (req, res) => {
         );
 
         const paymentId = paymentResult.insertId;
-        console.log('Payment record created with ID:', paymentId);
 
         // Initiate STK Push
         const callbackURL = `${process.env.BACKEND_URL}/api/payments/daraja/callback`;
@@ -144,21 +111,15 @@ exports.initiateJobPayment = async (req, res) => {
             const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
             
             if (isDemoMode) {
-                console.log('DEMO MODE: Simulating successful payment after 3 seconds...');
-                
-                // Simulate successful payment callback after a short delay
                 setTimeout(async () => {
                     try {
                         await db.query(
                             'UPDATE job_payments SET status = "completed", completed_at = NOW(), mpesa_receipt_number = ? WHERE id = ?',
                             [`DEMO${Date.now()}`, paymentId]
                         );
-                        
-                        console.log(`DEMO: Payment ${paymentId} marked as completed`);
-                        
+
                         // AUTO-SEND MONEY TO FISHERMAN (B2C Payment)
                         if (job.fisherman_phone) {
-                            console.log(`DEMO MODE: Simulating B2C payment of KSH ${fishermanAmount} to fisherman phone: ${job.fisherman_phone}`);
                             
                             try {
                                 const b2cResult = await darajaService.sendMoney(
@@ -166,8 +127,6 @@ exports.initiateJobPayment = async (req, res) => {
                                     fishermanAmount,
                                     `Job payment for: ${job.job_title}`
                                 );
-                                
-                                console.log('DEMO B2C payment result:', b2cResult);
                                 
                                 // Update payment record with B2C details
                                 await db.query(
@@ -274,48 +233,16 @@ exports.initiateJobPayment = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error initiating job payment:', error);
-        console.error('Error stack:', error.stack);
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            sqlState: error.sqlState,
-            sqlMessage: error.sqlMessage
-        });
-        
-        // Handle specific database errors
+        console.error('Error initiating job payment:', error.code || error.message);
+
         if (error.code === 'ER_NO_SUCH_TABLE') {
-            return res.status(500).json({ 
-                message: 'Database table not found. Please run database migrations.',
-                error: 'job_payments table missing'
-            });
+            return res.status(500).json({ message: 'Database setup incomplete. Please run migrations.' });
         }
-        
         if (error.code === 'ER_BAD_FIELD_ERROR') {
-            return res.status(500).json({ 
-                message: 'Database schema error. Please check table structure.',
-                error: 'Column missing in database'
-            });
+            return res.status(500).json({ message: 'Database schema error. Please check table structure.' });
         }
-        
-        // Handle authentication errors
-        if (error.message && error.message.includes('Authentication')) {
-            return res.status(401).json({ 
-                message: 'Authentication required',
-                error: 'Please log in again'
-            });
-        }
-        
-        res.status(500).json({ 
-            message: 'Failed to initiate payment',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
-            details: process.env.NODE_ENV === 'development' ? {
-                code: error.code,
-                errno: error.errno
-            } : undefined
-        });
+
+        res.status(500).json({ message: 'Failed to initiate payment. Please try again.' });
     }
 };
 // @desc    Handle M-Pesa STK Push callback
@@ -323,8 +250,6 @@ exports.handleMpesaCallback = async (req, res) => {
     try {
         const { stkCallback } = req.body;
         const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc } = stkCallback;
-
-        console.log('M-Pesa Callback received:', req.body);
 
         // Find payment record
         const [payments] = await db.query(
