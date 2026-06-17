@@ -187,12 +187,11 @@ exports.refreshToken = async (req, res) => {
 
         const oldToken = parts[1];
         
-        // Try to decode the token without verification to get the payload
         let decodedToken;
         try {
-            // This will work even with an expired token as we're not verifying
-            decodedToken = jwt.decode(oldToken);
-            
+            // Verify signature but allow expired tokens — rejects forged tokens
+            decodedToken = jwt.verify(oldToken, process.env.JWT_SECRET, { ignoreExpiration: true });
+
             if (!decodedToken || !decodedToken.user || !decodedToken.user.id) {
                 return res.status(401).json({ message: 'Invalid token format' });
             }
@@ -432,6 +431,16 @@ exports.resetPasswordDirect = async (req, res) => {
     }
 
     try {
+        // Require a verified OTP for this email before allowing a direct password reset
+        const [otpRecords] = await db.query(
+            'SELECT id FROM otp_verifications WHERE email = ? AND verified = true AND expires_at > NOW()',
+            [email]
+        );
+
+        if (otpRecords.length === 0) {
+            return res.status(403).json({ message: 'OTP verification required before resetting password.' });
+        }
+
         // Check if user exists
         const [users] = await db.query('SELECT user_id, email FROM users WHERE email = ?', [email]);
 
@@ -451,12 +460,11 @@ exports.resetPasswordDirect = async (req, res) => {
             [hashedPassword, user.user_id]
         );
 
-        // Clean up any existing password reset tokens for this user
+        // Clean up used OTP and any existing reset tokens
+        await db.query('DELETE FROM otp_verifications WHERE email = ?', [email]);
         await db.query('DELETE FROM password_resets WHERE user_id = ?', [user.user_id]);
 
-        console.log(`✅ Password successfully reset for user ${email}`);
-
-        res.status(200).json({ 
+        res.status(200).json({
             message: 'Password has been successfully reset. You can now sign in with your new password.'
         });
 
