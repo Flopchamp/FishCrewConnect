@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const jobRoutes = require('./routes/jobRoutes');
 const jobApplicationRoutes = require('./routes/jobApplicationRoutes');
 const reviewRoutes = require('./routes/reviewRoutes'); 
@@ -14,16 +15,32 @@ const supportRoutes = require('./routes/supportRoutes');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Be more specific in production!
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+
+// Parse allowed origins from ALLOWED_ORIGINS env var (comma-separated list)
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8081'];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error(`CORS: origin ${origin} not allowed`));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
-  },
-  transports: ['polling', 'websocket'], // Support both polling and websocket
-  allowEIO3: true, // Allow Engine.IO 3 transport for backwards compatibility
-  pingTimeout: 30000, // Increased ping timeout (default: 20000ms)
-  pingInterval: 25000 // Increased ping interval (default: 25000ms)
+};
+
+const io = new Server(server, {
+  cors: corsOptions,
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
+  pingTimeout: 30000,
+  pingInterval: 25000
 });
 
 // Make io accessible to our router
@@ -33,13 +50,7 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-// Enhanced CORS options to work better with Socket.IO
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json()); // Middleware to parse JSON bodies
 
 // Serve uploaded files statically
@@ -82,15 +93,30 @@ app.get('/socket-health', (req, res) => {
   });
 });
 
+// Socket.IO JWT authentication middleware — verifies token before any event
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+        return next(new Error('Socket authentication required'));
+    }
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.user.id.toString();
+        next();
+    } catch (err) {
+        next(new Error('Socket authentication failed'));
+    }
+});
+
 // Socket.IO connection
 io.on('connection', (socket) => {
-  // User connected - removed console log to reduce noise
+  // Auto-join the authenticated user's own room on connect
+  socket.join(socket.userId);
 
-  // Join a room based on user ID if provided (e.g., after authentication)  
+  // Validate that the requested room matches the authenticated user
   socket.on('join_room', (userId) => {
-    if (userId) {
-      socket.join(userId.toString());
-      // User joined room - console log removed
+    if (userId && userId.toString() === socket.userId) {
+      socket.join(socket.userId);
     }
   });
   
