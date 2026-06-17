@@ -27,14 +27,18 @@ class SocketService {
     this.isInitialized = false;
   }
 
-  initialize() {
+  async initialize() {
     if (this.isInitialized && this.socket) {
       return this.socket;
     }
 
     try {
-      console.log('Initializing Socket.IO connection to:', SOCKET_URL);
-      this.socket = io(SOCKET_URL, socketOptions);
+      const token = await AsyncStorage.getItem('token');
+
+      this.socket = io(SOCKET_URL, {
+        ...socketOptions,
+        auth: { token }
+      });
       this.isInitialized = true;
 
       this.socket.on('connect', () => {
@@ -69,8 +73,12 @@ class SocketService {
   }
 
   getSocket() {
-    if (!this.socket) {
-      this.initialize();
+    return this.socket;
+  }
+
+  async ensureInitialized() {
+    if (!this.isInitialized || !this.socket) {
+      await this.initialize();
     }
     return this.socket;
   }
@@ -143,63 +151,50 @@ export const useSocketIO = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    const socket = socketService.getSocket();
-    
-    if (!socket) {
-      setError('Failed to initialize socket');
-      return;
-    }
+    let socket;
+    let mounted = true;
 
-    // Set up event listeners
     const handleConnect = () => {
-      console.log('Socket.IO connected! Socket ID:', socket.id);
       setIsConnected(true);
       setError(null);
       socketService.joinUserRoom();
     };
-
-    const handleDisconnect = (reason) => {
-      console.log('Socket.IO disconnected! Reason:', reason);
-      setIsConnected(false);
-    };
-
-    const handleConnectError = (err) => {
-      console.error('Socket.IO connection error:', err.message);
-      setError(err.message);
-    };
-
-    const handleError = (err) => {
-      console.error('Socket.IO general error:', err);
-      setError(err.message || 'Unknown socket error');
-    };
-
+    const handleDisconnect = () => setIsConnected(false);
+    const handleConnectError = (err) => setError(err.message);
+    const handleError = (err) => setError(err.message || 'Unknown socket error');
     const handleNewNotification = (data) => {
-      console.log('New notification received:', data);
       setLastMessage(data);
-      setNotifications((prevNotifications) => [...prevNotifications, data]);
+      setNotifications((prev) => [...prev, data]);
     };
 
-    // Attach listeners
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('connect_error', handleConnectError);
-    socket.on('error', handleError);
-    socket.on('new_notification', handleNewNotification);
+    socketService.ensureInitialized().then((s) => {
+      if (!mounted || !s) {
+        if (mounted) setError('Failed to initialize socket');
+        return;
+      }
+      socket = s;
 
-    // Set initial connection state if already connected
-    if (socket.connected) {
-      setIsConnected(true);
-      socketService.joinUserRoom();
-    }
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+      socket.on('connect_error', handleConnectError);
+      socket.on('error', handleError);
+      socket.on('new_notification', handleNewNotification);
 
-    // Return cleanup function
+      if (socket.connected) {
+        setIsConnected(true);
+        socketService.joinUserRoom();
+      }
+    });
+
     return () => {
-      console.log('Cleaning up socket event listeners');
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('connect_error', handleConnectError);
-      socket.off('error', handleError);
-      socket.off('new_notification', handleNewNotification);
+      mounted = false;
+      if (socket) {
+        socket.off('connect', handleConnect);
+        socket.off('disconnect', handleDisconnect);
+        socket.off('connect_error', handleConnectError);
+        socket.off('error', handleError);
+        socket.off('new_notification', handleNewNotification);
+      }
     };
   }, []);
 
