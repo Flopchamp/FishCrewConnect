@@ -201,19 +201,25 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      
-      // Clear storage
+
+      // Revoke the token on the server so it can't be reused
+      await authAPI.logout();
+
+      // Clear local storage and state
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-      
-      // Clear state
       setUser(null);
       setToken(null);
-      
-      // Navigate to auth options page
+
       router.replace('/(auth)/auth-options');
     } catch (error) {
       console.error('Sign out error:', error);
+      // Always clear local state even if the server call fails
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      setUser(null);
+      setToken(null);
+      router.replace('/(auth)/auth-options');
     } finally {
       setLoading(false);
     }
