@@ -155,7 +155,7 @@ const ApplicationItem = ({ application, isOwner = false }) => {
       </View>
       
       {/* CV Section */}
-      {application.cv_file_name && (
+      {!!application.cv_file_name && (
         <View style={styles.cvContainer}>
           <View style={styles.cvIcon}>
             <Ionicons 
@@ -166,7 +166,7 @@ const ApplicationItem = ({ application, isOwner = false }) => {
           </View>
           <View style={styles.cvFileInfo}>
             <Text style={styles.cvFileName}>{application.cv_file_name}</Text>
-            {application.cv_file_size && (
+            {application.cv_file_size > 0 && (
               <Text style={styles.cvFileSize}>
                 {formatFileSize(application.cv_file_size)}
               </Text>
