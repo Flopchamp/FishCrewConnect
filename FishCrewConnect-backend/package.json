@@ -6,8 +6,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "setup": "node scripts/setup-database.js",
     "test-demo-payment": "node test-demo-payment.js",
-    "setup-payments-db": "node scripts/setup-payments-db.js"
+    "setup-payments-db": "node scripts/setup-payments-db.js",
+    "migrate-token-blacklist": "node scripts/create-token-blacklist.js",
+    "migrate-users-columns": "node scripts/migrate-users-columns.js"
   },
   "keywords": [],
   "author": "",
