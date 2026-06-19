@@ -930,8 +930,8 @@ exports.updateSystemSettings = async (req, res) => {
 
         // Update the setting in database
         await db.query(
-            'UPDATE system_settings SET setting_value = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?',
-            [JSON.stringify(formattedValue), userId, setting]
+            'UPDATE system_settings SET setting_value = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?',
+            [JSON.stringify(formattedValue), setting]
         );
 
         // Log the admin action
