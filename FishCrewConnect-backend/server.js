@@ -127,15 +127,13 @@ io.on('connection', (socket) => {
   // Handle real-time messaging
   socket.on('send_message', async (messageData) => {
     try {
-      const { recipientId, text, senderId } = messageData;
-      
+      const { recipientId, text } = messageData;
+
       if (recipientId && text) {
-        // Message processing - console log removed for cleaner output
-        
-        // Forward the message to the recipient's room
+        // Always use the server-verified userId — ignore any client-provided senderId
         io.to(recipientId.toString()).emit('new_message', {
-          id: Date.now(), // This will be overwritten when saved to DB
-          senderId: senderId || socket.user?.id || 'unknown',
+          id: Date.now(),
+          senderId: socket.userId,
           recipientId,
           text,
           timestamp: new Date().toISOString(),
