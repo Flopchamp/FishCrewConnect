@@ -762,117 +762,68 @@ exports.getAnalytics = async (req, res) => {
 // Get system settings
 exports.getSystemSettings = async (req, res) => {
     try {
-        // Check if user is an admin
         if (req.user.user_type !== 'admin') {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        // Get system statistics
-        const [dbStats] = await db.query(`
-            SELECT 
-                TABLE_NAME as table_name,
-                TABLE_ROWS as table_rows,
-                DATA_LENGTH as data_length,
-                INDEX_LENGTH as index_length
-            FROM information_schema.tables 
-            WHERE TABLE_SCHEMA = DATABASE()
-            ORDER BY DATA_LENGTH DESC
-        `);
+        // Read all settings and group by category
+        const [settingsRows] = await db.query(
+            'SELECT setting_key, setting_value, category FROM system_settings ORDER BY category, setting_key'
+        );
 
-        // Get system settings from database
-        const [settingsRows] = await db.query(`
-            SELECT setting_key, setting_value, setting_type, description 
-            FROM system_settings 
-            ORDER BY setting_key
-        `);
-
-        // Parse settings into categories
-        const features = {};
-        const limits = {};
-        const platform = {
-            name: 'FishCrewConnect',
-            version: '1.0.0',
-            environment: process.env.NODE_ENV || 'development'
+        const categorized = {
+            general: {}, features: {}, limits: {}, payment: {},
+            email: {}, notifications: {}, security: {}, system: {},
         };
 
-        settingsRows.forEach(setting => {
-            let value = setting.setting_value;
-            
-            // Parse JSON values
-            if (typeof value === 'string') {
-                try {
-                    value = JSON.parse(value);
-                } catch (e) {
-                    // Keep as string if not valid JSON
-                }
-            }
-
-            // Categorize settings based on setting key patterns
-            if (setting.setting_key.includes('enabled')) {
-                features[setting.setting_key] = value;
-            } else if (setting.setting_key.includes('max_') || setting.setting_key.includes('limit')) {
-                limits[setting.setting_key] = value;
-            } else if (setting.setting_key.startsWith('platform_')) {
-                if (setting.setting_key === 'platform_name') platform.name = value;
-                if (setting.setting_key === 'platform_version') platform.version = value;
-                if (setting.setting_key === 'platform_environment') platform.environment = value;
+        settingsRows.forEach(({ setting_key, setting_value, category }) => {
+            let value = setting_value;
+            try { value = JSON.parse(value); } catch (e) {}
+            if (categorized[category] !== undefined) {
+                categorized[category][setting_key] = value;
             }
         });
 
-        // Get recent admin actions
+        // Recent admin actions (gracefully falls back to empty if table is new)
         let adminActions = [];
         try {
-            const [adminActionsRows] = await db.query(`
-                SELECT 
-                    aa.action_type,
-                    aa.action_description,
-                    aa.created_at,
-                    u.name as admin_name
+            const [rows] = await db.query(`
+                SELECT aa.action_description, aa.created_at, u.name AS admin_name
                 FROM admin_actions aa
                 JOIN users u ON aa.admin_id = u.user_id
                 ORDER BY aa.created_at DESC
-                LIMIT 10
+                LIMIT 20
             `);
-
-            adminActions = adminActionsRows.map(action => ({
-                action: action.action_description,
-                admin: action.admin_name,
-                timestamp: action.created_at
+            adminActions = rows.map(r => ({
+                action: r.action_description,
+                admin: r.admin_name,
+                timestamp: r.created_at
             }));
-        } catch (error) {
-            console.log('Admin actions table may not exist or be empty:', error.message);
-            // Provide fallback data
-            adminActions = [
-                { action: 'System initialized', admin: 'System', timestamp: new Date() },
-                { action: 'Settings configured', admin: 'Admin', timestamp: new Date() }
-            ];
+        } catch (e) {
+            console.log('admin_actions not yet populated:', e.message);
         }
 
-        // Enhanced database information
-        const totalRows = dbStats.reduce((sum, table) => sum + (table.table_rows || 0), 0);
-        const totalSize = dbStats.reduce((sum, table) => sum + (table.data_length || 0), 0);
-        const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-
-        // System configuration
-        const systemConfig = {
-            platform,
-            database: {
-                name: process.env.MYSQL_DB_NAME || 'fishcrew',
-                tables: dbStats.map(table => ({
-                    table_name: table.table_name || 'Unknown',
-                    table_rows: table.table_rows || 0,
-                    table_size_mb: ((table.data_length || 0) / (1024 * 1024)).toFixed(2)
-                })),
-                totalTables: dbStats.length,
-                totalRows: totalRows.toString(),
-                totalSizeMB
-            },
-            features,
-            limits
-        };
+        // DB size stats
+        const [dbStats] = await db.query(`
+            SELECT TABLE_NAME AS table_name, TABLE_ROWS AS table_rows, DATA_LENGTH AS data_length
+            FROM information_schema.tables
+            WHERE TABLE_SCHEMA = DATABASE()
+            ORDER BY DATA_LENGTH DESC
+        `);
+        const totalSize = dbStats.reduce((s, t) => s + (t.data_length || 0), 0);
 
         res.json({
-            systemConfig,
+            ...categorized,
+            database: {
+                name: process.env.MYSQL_DATABASE || 'fishcrewconnect',
+                tables: dbStats.map(t => ({
+                    table_name: t.table_name,
+                    table_rows: t.table_rows || 0,
+                    table_size_mb: ((t.data_length || 0) / (1024 * 1024)).toFixed(2)
+                })),
+                totalTables: dbStats.length,
+                totalSizeMB: (totalSize / (1024 * 1024)).toFixed(2)
+            },
             adminActions,
             lastUpdated: new Date()
         });
@@ -883,87 +834,96 @@ exports.getSystemSettings = async (req, res) => {
 };
 
 // Update system settings
+// Accepts { settings: { ...nested or flat key→value... } } for bulk updates
+// or legacy { setting: 'key', value: val } for single-key updates.
 exports.updateSystemSettings = async (req, res) => {
     try {
-        // Check if user is an admin
         if (req.user.user_type !== 'admin') {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        const { setting, value } = req.body;
-        
-        // Get user ID - check both possible property names
         const userId = req.user?.id || req.user?.user_id;
-        
-        if (!userId) {
-            return res.status(400).json({ message: 'User ID not found in request' });
+        if (!userId) return res.status(400).json({ message: 'User ID not found in request' });
+
+        // Build flat key→value map from either input format
+        let flatUpdates;
+        if (req.body.settings && typeof req.body.settings === 'object') {
+            flatUpdates = flattenSettings(req.body.settings);
+        } else if (req.body.setting !== undefined) {
+            flatUpdates = { [req.body.setting]: req.body.value };
+        } else {
+            return res.status(400).json({ message: 'Provide { settings: {...} } or { setting, value }' });
         }
-        
-        // Validate setting exists
-        const [existingSetting] = await db.query(
-            'SELECT * FROM system_settings WHERE setting_key = ?',
-            [setting]
+
+        const keys = Object.keys(flatUpdates);
+        if (keys.length === 0) return res.status(400).json({ message: 'No settings provided' });
+
+        // Validate keys against DB — only update keys that actually exist
+        const placeholders = keys.map(() => '?').join(',');
+        const [existingRows] = await db.query(
+            `SELECT setting_key, setting_type FROM system_settings WHERE setting_key IN (${placeholders})`,
+            keys
         );
+        const typeMap = {};
+        existingRows.forEach(r => { typeMap[r.setting_key] = r.setting_type; });
 
-        if (existingSetting.length === 0) {
-            return res.status(400).json({ message: 'Invalid setting name' });
+        const validKeys = keys.filter(k => typeMap[k] !== undefined);
+        if (validKeys.length === 0) {
+            return res.status(400).json({ message: 'None of the provided keys match known settings' });
         }
 
-        // Determine the correct data type and format
-        let formattedValue = value;
-        const settingType = existingSetting[0].setting_type;
-
-        if (settingType === 'boolean') {
-            formattedValue = Boolean(value);
-        } else if (settingType === 'number') {
-            formattedValue = Number(value);
-            if (isNaN(formattedValue)) {
-                return res.status(400).json({ message: 'Invalid number value' });
+        for (const key of validKeys) {
+            let formatted = flatUpdates[key];
+            const type = typeMap[key];
+            if (type === 'boolean') formatted = Boolean(formatted);
+            else if (type === 'number') {
+                formatted = Number(formatted);
+                if (isNaN(formatted)) continue;
             }
-        } else if (settingType === 'json') {
-            try {
-                formattedValue = typeof value === 'string' ? JSON.parse(value) : value;
-            } catch (e) {
-                return res.status(400).json({ message: 'Invalid JSON value' });
-            }
+            await db.query(
+                'UPDATE system_settings SET setting_value = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?',
+                [JSON.stringify(formatted), key]
+            );
         }
 
-        // Update the setting in database
-        await db.query(
-            'UPDATE system_settings SET setting_value = ?, updated_at = CURRENT_TIMESTAMP WHERE setting_key = ?',
-            [JSON.stringify(formattedValue), setting]
-        );
-
-        // Log the admin action
         await db.query(
             'INSERT INTO admin_actions (admin_id, action_type, action_description, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
             [
                 userId,
                 'SETTING_UPDATE',
-                `Updated system setting: ${setting}`,
-                JSON.stringify({ setting, oldValue: existingSetting[0].setting_value, newValue: formattedValue }),
+                `Updated ${validKeys.length} system setting(s): ${validKeys.join(', ')}`,
+                JSON.stringify({ updated: validKeys }),
                 req.ip,
                 req.get('User-Agent') || ''
             ]
         );
 
-        console.log(`Admin ${userId} updated system setting: ${setting} = ${formattedValue}`);
-
-        // Clear settings cache so changes take effect immediately
         clearSettingsCache();
 
-        res.json({ 
-            message: `System setting '${setting}' updated successfully`,
-            setting,
-            value: formattedValue,
-            updatedBy: req.user.name,
-            updatedAt: new Date()
+        res.json({
+            message: `Updated ${validKeys.length} setting(s) successfully`,
+            updated: validKeys
         });
     } catch (error) {
         console.error('Error updating system settings:', error);
         res.status(500).json({ message: 'Internal server error while updating system settings' });
     }
 };
+
+// Recursively flatten a nested settings object to flat key→value pairs.
+// { general: { platform_name: 'X' }, features: { job_posting_enabled: true } }
+// → { platform_name: 'X', job_posting_enabled: true }
+function flattenSettings(obj) {
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+        if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+            Object.assign(result, flattenSettings(v));
+        } else {
+            result[k] = v;
+        }
+    }
+    return result;
+}
 
 // Get admin activity log
 exports.getAdminActivityLog = async (req, res) => {

@@ -58,18 +58,12 @@ const SettingsPage = () => {
       setSettings(settingsData);
       setFormData(settingsData);
       setSystemInfo(dashboardData);
-      
-      // Set limit values for editing
+
       if (settingsData.limits) {
         setLimitValues({ ...settingsData.limits });
       }
 
-      // Mock admin actions - you can replace with actual API call
-      setAdminActions([
-        { action: 'Updated payment settings', admin: 'Admin User', timestamp: new Date().toISOString() },
-        { action: 'Enabled email notifications', admin: 'Admin User', timestamp: new Date(Date.now() - 3600000).toISOString() },
-        { action: 'Modified system limits', admin: 'Admin User', timestamp: new Date(Date.now() - 7200000).toISOString() },
-      ]);
+      setAdminActions(settingsData.adminActions || []);
 
     } catch (error) {
       toast.error('Failed to load settings');
@@ -83,7 +77,9 @@ const SettingsPage = () => {
   const handleSaveSettings = async () => {
     try {
       setSaving(true);
-      await adminAPI.updateSystemSettings(formData);
+      // Exclude read-only fields that are not DB settings
+      const { database, adminActions, lastUpdated, ...settingsToSave } = formData;
+      await adminAPI.updateSystemSettings(settingsToSave);
       toast.success('Settings saved successfully');
       setSettings(formData);
     } catch (error) {
@@ -106,20 +102,12 @@ const SettingsPage = () => {
 
   const handleFeatureToggle = async (feature, value) => {
     try {
-      await adminAPI.updateSystemSettings('features', {
-        ...formData.features,
-        [feature]: value
-      });
-      
+      await adminAPI.updateSystemSettings({ [feature]: value });
       setFormData(prev => ({
         ...prev,
-        features: {
-          ...prev.features,
-          [feature]: value
-        }
+        features: { ...prev.features, [feature]: value }
       }));
-      
-      toast.success(`${feature.replace(/_/g, ' ')} has been ${value ? 'enabled' : 'disabled'}`);
+      toast.success(`${feature.replace(/_/g, ' ')} ${value ? 'enabled' : 'disabled'}`);
     } catch (error) {
       toast.error('Failed to update feature setting');
       console.error('Error updating feature:', error);
@@ -144,13 +132,8 @@ const SettingsPage = () => {
         return;
       }
 
-      await adminAPI.updateSystemSettings('limits', limitValues);
-      
-      setFormData(prev => ({
-        ...prev,
-        limits: { ...limitValues }
-      }));
-      
+      await adminAPI.updateSystemSettings(limitValues);
+      setFormData(prev => ({ ...prev, limits: { ...limitValues } }));
       setEditingLimits(false);
       toast.success('System limits updated successfully');
       
@@ -409,7 +392,6 @@ const SettingsPage = () => {
                     max_applications_per_job: 'Max Applications Per Job',
                     max_file_size_mb: 'Max File Size (MB)',
                     max_messages_per_day: 'Max Messages Per Day',
-                    max_login_attempts: 'Max Login Attempts',
                   }).map(([key, title]) => (
                     <div key={key} className="p-4 bg-gray-50 rounded-lg">
                       <h4 className="text-sm font-medium text-gray-900 mb-2">{title}</h4>
@@ -1007,312 +989,6 @@ const SettingsPage = () => {
               </div>
             )}
 
-            {/* Payment Settings */}
-            {activeTab === 'payment' && (
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Payment Settings</h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Commission Rate (%)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className="input w-full"
-                      value={formData.payment?.commission_rate || ''}
-                      onChange={(e) => handleInputChange('payment', 'commission_rate', parseFloat(e.target.value))}
-                      placeholder="5.0"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Percentage commission charged on each payment
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Minimum Payment Amount (KES)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="input w-full"
-                      value={formData.payment?.minimum_amount || ''}
-                      onChange={(e) => handleInputChange('payment', 'minimum_amount', parseInt(e.target.value))}
-                      placeholder="100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Maximum Payment Amount (KES)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      className="input w-full"
-                      value={formData.payment?.maximum_amount || ''}
-                      onChange={(e) => handleInputChange('payment', 'maximum_amount', parseInt(e.target.value))}
-                      placeholder="1000000"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      M-Pesa Consumer Key
-                    </label>
-                    <input
-                      type="password"
-                      className="input w-full"
-                      value={formData.payment?.mpesa_consumer_key || ''}
-                      onChange={(e) => handleInputChange('payment', 'mpesa_consumer_key', e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      M-Pesa Consumer Secret
-                    </label>
-                    <input
-                      type="password"
-                      className="input w-full"
-                      value={formData.payment?.mpesa_consumer_secret || ''}
-                      onChange={(e) => handleInputChange('payment', 'mpesa_consumer_secret', e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.payment?.auto_approve_payments || false}
-                        onChange={(e) => handleInputChange('payment', 'auto_approve_payments', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">Auto-approve Payments</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Email Settings */}
-            {activeTab === 'email' && (
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Email Settings</h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SMTP Host
-                    </label>
-                    <input
-                      type="text"
-                      className="input w-full"
-                      value={formData.email?.smtp_host || ''}
-                      onChange={(e) => handleInputChange('email', 'smtp_host', e.target.value)}
-                      placeholder="smtp.gmail.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SMTP Port
-                    </label>
-                    <input
-                      type="number"
-                      className="input w-full"
-                      value={formData.email?.smtp_port || ''}
-                      onChange={(e) => handleInputChange('email', 'smtp_port', parseInt(e.target.value))}
-                      placeholder="587"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SMTP Username
-                    </label>
-                    <input
-                      type="email"
-                      className="input w-full"
-                      value={formData.email?.smtp_username || ''}
-                      onChange={(e) => handleInputChange('email', 'smtp_username', e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      SMTP Password
-                    </label>
-                    <input
-                      type="password"
-                      className="input w-full"
-                      value={formData.email?.smtp_password || ''}
-                      onChange={(e) => handleInputChange('email', 'smtp_password', e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.email?.enable_notifications || false}
-                        onChange={(e) => handleInputChange('email', 'enable_notifications', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">Enable Email Notifications</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Notifications Settings */}
-            {activeTab === 'notifications' && (
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Notification Settings</h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.notifications?.new_user_signup || false}
-                        onChange={(e) => handleInputChange('notifications', 'new_user_signup', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">New User Signup</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.notifications?.new_job_posted || false}
-                        onChange={(e) => handleInputChange('notifications', 'new_job_posted', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">New Job Posted</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.notifications?.payment_received || false}
-                        onChange={(e) => handleInputChange('notifications', 'payment_received', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">Payment Received</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.notifications?.system_alerts || false}
-                        onChange={(e) => handleInputChange('notifications', 'system_alerts', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">System Alerts</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Admin Email for Notifications
-                    </label>
-                    <input
-                      type="email"
-                      className="input w-full"
-                      value={formData.notifications?.admin_email || ''}
-                      onChange={(e) => handleInputChange('notifications', 'admin_email', e.target.value)}
-                      placeholder="admin@fishcrewconnect.com"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Security Settings */}
-            {activeTab === 'security' && (
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Security Settings</h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      JWT Secret Key
-                    </label>
-                    <input
-                      type="password"
-                      className="input w-full"
-                      value={formData.security?.jwt_secret || ''}
-                      onChange={(e) => handleInputChange('security', 'jwt_secret', e.target.value)}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Strong secret key for JWT token generation
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Token Expiration (hours)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="168"
-                      className="input w-full"
-                      value={formData.security?.token_expiration || ''}
-                      onChange={(e) => handleInputChange('security', 'token_expiration', parseInt(e.target.value))}
-                      placeholder="24"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Max Login Attempts
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      className="input w-full"
-                      value={formData.security?.max_login_attempts || ''}
-                      onChange={(e) => handleInputChange('security', 'max_login_attempts', parseInt(e.target.value))}
-                      placeholder="5"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.security?.require_email_verification || false}
-                        onChange={(e) => handleInputChange('security', 'require_email_verification', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">Require Email Verification</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="mr-2"
-                        checked={formData.security?.enable_two_factor || false}
-                        onChange={(e) => handleInputChange('security', 'enable_two_factor', e.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-gray-700">Enable Two-Factor Authentication</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
