@@ -56,46 +56,52 @@ const profileImageStorage = multer.diskStorage({
   }
 });
 
-// File filter to only allow certain file types
-const fileFilter = (req, file, cb) => {
-  // Allowed file types for CV/Resume
-  const allowedTypes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-    'image/jpeg',
-    'image/png'
-  ];
-  
-  const allowedExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
-  const fileExtension = path.extname(file.originalname).toLowerCase();
-  
-  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Please upload PDF, DOC, DOCX, TXT, JPG, or PNG files only.'), false);
-  }
+// Extension → allowed MIME types map for CV uploads.
+// Both the extension AND the declared MIME type must agree — prevents extension spoofing.
+const CV_EXTENSION_MIME_MAP = {
+  '.pdf':  ['application/pdf'],
+  '.doc':  ['application/msword'],
+  '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  '.txt':  ['text/plain'],
+  '.jpg':  ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png':  ['image/png'],
 };
 
-// File filter for profile images (images only)
-const profileImageFilter = (req, file, cb) => {
-  // Allowed file types for profile images
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp'
-  ];
-  
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-  const fileExtension = path.extname(file.originalname).toLowerCase();
-  
-  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Invalid file type. Please upload JPG, PNG, GIF, or WebP images only.'), false);
+const IMAGE_EXTENSION_MIME_MAP = {
+  '.jpg':  ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png':  ['image/png'],
+  '.gif':  ['image/gif'],
+  '.webp': ['image/webp'],
+};
+
+// File filter for CV/Resume uploads
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedMimeTypes = CV_EXTENSION_MIME_MAP[ext];
+
+  if (!allowedMimeTypes) {
+    return cb(new Error('Invalid file type. Allowed: PDF, DOC, DOCX, TXT, JPG, PNG.'), false);
   }
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return cb(new Error('File content does not match its extension. Upload rejected.'), false);
+  }
+  cb(null, true);
+};
+
+// File filter for profile images
+const profileImageFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedMimeTypes = IMAGE_EXTENSION_MIME_MAP[ext];
+
+  if (!allowedMimeTypes) {
+    return cb(new Error('Invalid file type. Allowed: JPG, PNG, GIF, WebP.'), false);
+  }
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return cb(new Error('File content does not match its extension. Upload rejected.'), false);
+  }
+  cb(null, true);
 };
 
 // Configure multer
