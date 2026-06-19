@@ -131,6 +131,7 @@ exports.signin = async (req, res) => {
 
         // User matched and verified, create JWT payload
         const payload = {
+            jti: crypto.randomUUID(), // unique token ID for revocation
             user: {
                 id: user.user_id,
                 email: user.email,
@@ -144,10 +145,10 @@ exports.signin = async (req, res) => {
         jwt.sign(
             payload,
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }, // Token expires in 1 hour, adjust as needed
+            { expiresIn: '1h' },
             (err, token) => {
                 if (err) throw err;
-                res.json({ 
+                res.json({
                     token,
                     user: {
                         id: user.user_id,
@@ -211,19 +212,20 @@ exports.refreshToken = async (req, res) => {
             
             const user = users[0];
             
-            // Generate a new token
+            // Generate a new token with a fresh JTI so the old one can be revoked independently
             const payload = {
+                jti: crypto.randomUUID(),
                 user: {
                     id: user.user_id,
                     email: user.email,
                     user_type: user.user_type
                 }
             };
-            
+
             const newToken = jwt.sign(
                 payload,
                 process.env.JWT_SECRET,
-                { expiresIn: '8h' }  // Extended token expiration
+                { expiresIn: '8h' }
             );
             
             // Return the new token
@@ -587,5 +589,34 @@ exports.verifyOTP = async (req, res) => {
     } catch (error) {
         console.error('Verify OTP error:', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
+    }
+};
+
+// @desc    Logout — blacklist the current token so it cannot be reused
+// @route   POST /api/auth/logout
+// @access  Private
+exports.logout = async (req, res) => {
+    try {
+        const authHeader = req.header('Authorization');
+        const token = authHeader?.split(' ')[1];
+
+        if (token) {
+            const decoded = jwt.decode(token);
+            if (decoded?.jti && decoded?.exp) {
+                const expiresAt = new Date(decoded.exp * 1000);
+                // Insert; ignore duplicate JTIs (idempotent logout)
+                await db.query(
+                    'INSERT IGNORE INTO token_blacklist (jti, expires_at) VALUES (?, ?)',
+                    [decoded.jti, expiresAt]
+                );
+                // Opportunistically remove expired entries to keep the table small
+                await db.query('DELETE FROM token_blacklist WHERE expires_at < NOW()');
+            }
+        }
+
+        res.status(200).json({ message: 'Logged out successfully.' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ message: 'Server error during logout.' });
     }
 };

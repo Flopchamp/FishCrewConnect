@@ -138,7 +138,7 @@ exports.getReviewsForUser = async (req, res) => {
             "SELECT r.*, u_reviewer.name as reviewer_name " +
             "FROM reviews r " +
             "JOIN users u_reviewer ON r.reviewer_id = u_reviewer.user_id " +
-            "WHERE r.reviewed_user_id = ? ORDER BY r.review_date DESC",
+            "WHERE r.reviewed_user_id = ? ORDER BY r.created_at DESC",
             [userId]
         );
         res.status(200).json(reviews);
@@ -159,7 +159,7 @@ exports.getReviewsForJob = async (req, res) => {
             "FROM reviews r " +
             "JOIN users u_reviewer ON r.reviewer_id = u_reviewer.user_id " +
             "JOIN users u_reviewed ON r.reviewed_user_id = u_reviewed.user_id " +
-            "WHERE r.job_id = ? ORDER BY r.review_date DESC",
+            "WHERE r.job_id = ? ORDER BY r.created_at DESC",
             [jobId]
         );
         res.status(200).json(reviews);
