@@ -53,25 +53,27 @@ exports.applyForJob = async (req, res) => {
         const [newApplication] = await db.query("SELECT * FROM job_applications WHERE id = ?", [result.insertId]);
 
         // Create a notification for the boat owner
-        const [jobOwnerResult] = await db.query("SELECT user_id, job_title FROM jobs WHERE job_id = ?", [jobId]); // Also fetch job_title
-        if (jobOwnerResult.length > 0) {
-            const jobOwnerId = jobOwnerResult[0].user_id;
-            const jobTitle = jobOwnerResult[0].job_title;            const notificationMessage = `You have a new application for your job \"${jobTitle}\".`;
-            const notificationType = 'new_application';
-            const notificationLink = `/job-applications/${jobId}`;
-
-            const [notifResult] = await db.query(
-                "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
-                [jobOwnerId, notificationType, notificationMessage, notificationLink]
-            );
-            
-            // Emit Socket.IO event
-            if (req.io && notifResult.insertId) {
-                const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
-                if (newNotif.length > 0) {
-                    req.io.to(jobOwnerId.toString()).emit('new_notification', newNotif[0]);
+        try {
+            const [jobOwnerResult] = await db.query("SELECT user_id, job_title FROM jobs WHERE job_id = ?", [jobId]);
+            if (jobOwnerResult.length > 0) {
+                const jobOwnerId = jobOwnerResult[0].user_id;
+                const jobTitle = jobOwnerResult[0].job_title;
+                const notificationMessage = `You have a new application for your job "${jobTitle}".`;
+                const notificationType = 'new_application';
+                const notificationLink = `/job-applications/${jobId}`;
+                const [notifResult] = await db.query(
+                    "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
+                    [jobOwnerId, notificationType, notificationMessage, notificationLink]
+                );
+                if (req.io && notifResult.insertId) {
+                    const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
+                    if (newNotif.length > 0) {
+                        req.io.to(jobOwnerId.toString()).emit('new_notification', newNotif[0]);
+                    }
                 }
             }
+        } catch (notifError) {
+            console.error('Error sending application notification:', notifError);
         }
 
         res.status(201).json(newApplication[0]);
@@ -204,30 +206,32 @@ exports.updateApplicationStatus = async (req, res) => {
         }
 
         // Create a notification for the applicant
-        const applicantId = appRows[0].applicant_id;
-        const jobTitle = appRows[0].job_title;
-        let notificationMessage = `Your application for the job \"${jobTitle}\" has been updated to ${status}.`;
-        if (status === 'accepted') {
-            notificationMessage = `Congratulations! Your application for the job \"${jobTitle}\" has been accepted.`;
-        } else if (status === 'rejected') {
-            notificationMessage = `We regret to inform you that your application for the job \"${jobTitle}\" has been rejected.`;
-        }        const notificationType = 'application_update';
-        const notificationLink = `/(tabs)/my-applications`;
-        
-        const [notifResult] = await db.query(
-            "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
-            [applicantId, notificationType, notificationMessage, notificationLink]
-        );        // Emit Socket.IO event
-        if (req.io && notifResult.insertId) {
-            const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
-            if (newNotif.length > 0) {
-                // Add the application_id to the notification for front-end tracking
-                const notificationWithAppId = {
-                    ...newNotif[0],
-                    application_id: applicationId
-                };
-                req.io.to(applicantId.toString()).emit('new_notification', notificationWithAppId);
+        try {
+            const applicantId = appRows[0].applicant_id;
+            const jobTitle = appRows[0].job_title;
+            let notificationMessage = `Your application for the job "${jobTitle}" has been updated to ${status}.`;
+            if (status === 'accepted') {
+                notificationMessage = `Congratulations! Your application for the job "${jobTitle}" has been accepted.`;
+            } else if (status === 'rejected') {
+                notificationMessage = `We regret to inform you that your application for the job "${jobTitle}" has been rejected.`;
             }
+            const notificationType = 'application_update';
+            const notificationLink = `/(tabs)/my-applications`;
+            const [notifResult] = await db.query(
+                "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
+                [applicantId, notificationType, notificationMessage, notificationLink]
+            );
+            if (req.io && notifResult.insertId) {
+                const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
+                if (newNotif.length > 0) {
+                    req.io.to(applicantId.toString()).emit('new_notification', {
+                        ...newNotif[0],
+                        application_id: applicationId
+                    });
+                }
+            }
+        } catch (notifError) {
+            console.error('Error sending application status notification:', notifError);
         }
 
         const [updatedApplication] = await db.query("SELECT * FROM job_applications WHERE id = ?", [applicationId]);
