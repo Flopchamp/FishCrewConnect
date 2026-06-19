@@ -299,7 +299,7 @@ const JobApplicationsScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-            {(item.experience_years || item.skills) && (
+            {(!!item.experience_years || !!item.skills) && (
         <View style={styles.applicantInfoContainer}>
           {item.experience_years && (
             <View style={styles.infoItem}>
@@ -324,7 +324,7 @@ const JobApplicationsScreen = () => {
         </View>
       )}
       
-      {item.cover_letter && (
+      {!!item.cover_letter && (
         <View style={styles.coverLetterContainer}>
           <Text style={styles.sectionTitle}>Cover Letter</Text>
           <Text style={styles.coverLetterText}>{item.cover_letter}</Text>
