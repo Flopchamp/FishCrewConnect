@@ -67,8 +67,8 @@ exports.createJob = async (req, res) => {
                     return db.query('INSERT INTO notifications SET ?', notification);
                 });
                 
-                // Execute all notification creation promises
-                await Promise.all(notificationPromises);
+                // Execute all notification creation promises; allSettled so one failure doesn't drop the rest
+                await Promise.allSettled(notificationPromises);
                 
                 // Emit Socket.IO event for real-time notifications if Socket.IO is available
                 if (req.io) {                    fishermen.forEach(fisherman => {
@@ -231,27 +231,27 @@ exports.updateJob = async (req, res) => {
             }
 
             if (notificationMessage && applicantsToNotify.length > 0) {
-                for (const applicantId of applicantsToNotify) {
-                    // Avoid notifying the job owner if they are also in the list (edge case, shouldn't happen for applicants)
-                    if (applicantId === userId) continue;
-                    
-                    const notificationLink = `/(tabs)/my-applications`; // or a link to the specific job/application
-                    const [notifResult] = await db.query(
-                        "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
-                        [applicantId, applicantNotificationType, notificationMessage, notificationLink]
-                    );
-
-                    // Emit Socket.IO event
-                    if (req.io && notifResult.insertId) {
-                        const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
-                        if (newNotif.length > 0) {
-                            req.io.to(applicantId.toString()).emit('new_notification', newNotif[0]);
+                try {
+                    for (const applicantId of applicantsToNotify) {
+                        if (applicantId === userId) continue;
+                        const notificationLink = `/(tabs)/my-applications`;
+                        const [notifResult] = await db.query(
+                            "INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)",
+                            [applicantId, applicantNotificationType, notificationMessage, notificationLink]
+                        );
+                        if (req.io && notifResult.insertId) {
+                            const [newNotif] = await db.query("SELECT * FROM notifications WHERE id = ?", [notifResult.insertId]);
+                            if (newNotif.length > 0) {
+                                req.io.to(applicantId.toString()).emit('new_notification', newNotif[0]);
+                            }
                         }
                     }
+                } catch (notifError) {
+                    console.error('Error sending job status notifications:', notifError);
                 }
             }
         }
-        
+
         res.json(updatedJobRows[0]);
 
     } catch (error) {
