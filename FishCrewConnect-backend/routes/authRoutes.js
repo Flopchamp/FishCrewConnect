@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const { checkUserRegistrationEnabled } = require('../middleware/settingsMiddleware');
 const { authLimiter, generalAuthLimiter } = require('../middleware/rateLimitMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
 
 // @route   POST api/auth/signup
 // @desc    Register a new user
@@ -49,11 +50,11 @@ router.post('/send-otp', authLimiter, authController.sendOTP);
 // @access  Public
 router.post('/verify-otp', authLimiter, authController.verifyOTP);
 
-// ---- START DIAGNOSTIC ROUTE in authRoutes.js ----
-router.get('/ping', (req, res) => {
-  console.log('Accessed /api/auth/ping in authRoutes.js');
-  res.status(200).send('Pong from /api/auth/ping in authRoutes.js');
-});
-// ---- END DIAGNOSTIC ROUTE ----
+// @route   POST api/auth/logout
+// @desc    Invalidate the current token (add JTI to blacklist)
+// @access  Private
+router.post('/logout', authMiddleware, authController.logout);
+
+router.get('/ping', (req, res) => res.status(200).send('Pong'));
 
 module.exports = router;
