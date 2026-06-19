@@ -3,15 +3,18 @@ import { adminAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import {
   Search,
-  Filter,
-  MoreVertical,
   CheckCircle,
   XCircle,
   UserCheck,
   UserX,
   Eye,
-  Shield,
+  X,
   Clock,
+  Mail,
+  Phone,
+  Building2,
+  CalendarDays,
+  ShieldCheck,
 } from 'lucide-react';
 
 const UsersPage = () => {
@@ -26,6 +29,7 @@ const UsersPage = () => {
     total: 0,
   });
   const [counts, setCounts] = useState({});
+  const [selectedUser, setSelectedUser] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -289,7 +293,11 @@ const UsersPage = () => {
                             <UserCheck className="h-4 w-4" />
                           </button>
                         )}
-                        <button className="text-gray-400 hover:text-gray-600" title="View Details">
+                        <button
+                          onClick={() => setSelectedUser(user)}
+                          className="text-gray-400 hover:text-gray-600"
+                          title="View Details"
+                        >
                           <Eye className="h-4 w-4" />
                         </button>
                       </div>
@@ -328,8 +336,116 @@ const UsersPage = () => {
           </div>
         )}
       </div>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">User Details</h2>
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Avatar + name */}
+            <div className="flex items-center gap-4 px-6 py-5 bg-gray-50 border-b">
+              <div className="h-14 w-14 rounded-full bg-primary-100 flex items-center justify-center text-xl font-bold text-primary-700">
+                {selectedUser.name?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="text-base font-semibold text-gray-900">{selectedUser.name}</div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getUserTypeColor(selectedUser.user_type)}`}>
+                  {selectedUser.user_type === 'boat_owner' ? 'Boat Owner' :
+                   selectedUser.user_type === 'fisherman' ? 'Fisherman' :
+                   selectedUser.user_type.charAt(0).toUpperCase() + selectedUser.user_type.slice(1)}
+                </span>
+              </div>
+            </div>
+
+            {/* Detail rows */}
+            <div className="divide-y px-6">
+              <DetailRow icon={<Mail className="h-4 w-4" />} label="Email" value={selectedUser.email} />
+              <DetailRow icon={<Phone className="h-4 w-4" />} label="Contact" value={selectedUser.contact_number || 'Not provided'} />
+              {selectedUser.organization_name && (
+                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Organisation" value={selectedUser.organization_name} />
+              )}
+              <DetailRow
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Verification"
+                value={
+                  <span className="inline-flex items-center gap-1">
+                    {getStatusBadge(selectedUser.status, selectedUser.verification_status)}
+                  </span>
+                }
+              />
+              <DetailRow
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Account status"
+                value={
+                  selectedUser.status === 'suspended' ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Suspended</span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                  )
+                }
+              />
+              <DetailRow icon={<CalendarDays className="h-4 w-4" />} label="Joined" value={formatDate(selectedUser.created_at)} />
+              {selectedUser.verified_at && (
+                <DetailRow icon={<CalendarDays className="h-4 w-4" />} label="Verified on" value={formatDate(selectedUser.verified_at)} />
+              )}
+              {selectedUser.verified_by_name && (
+                <DetailRow icon={<ShieldCheck className="h-4 w-4" />} label="Verified by" value={selectedUser.verified_by_name} />
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              {selectedUser.verification_status === 'pending' && (
+                <button
+                  onClick={() => { handleVerifyUser(selectedUser.user_id); setSelectedUser(null); }}
+                  className="btn btn-primary btn-sm"
+                >
+                  Verify User
+                </button>
+              )}
+              {selectedUser.status !== 'suspended' && selectedUser.user_type !== 'admin' && (
+                <button
+                  onClick={() => { handleSuspendUser(selectedUser.user_id); setSelectedUser(null); }}
+                  className="btn btn-sm bg-red-600 text-white hover:bg-red-700"
+                >
+                  Suspend
+                </button>
+              )}
+              {selectedUser.status === 'suspended' && (
+                <button
+                  onClick={() => { handleUnsuspendUser(selectedUser.user_id); setSelectedUser(null); }}
+                  className="btn btn-sm bg-green-600 text-white hover:bg-green-700"
+                >
+                  Unsuspend
+                </button>
+              )}
+              <button onClick={() => setSelectedUser(null)} className="btn btn-outline btn-sm">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+const DetailRow = ({ icon, label, value }) => (
+  <div className="flex items-start gap-3 py-3">
+    <span className="text-gray-400 mt-0.5">{icon}</span>
+    <span className="w-32 text-sm text-gray-500 shrink-0">{label}</span>
+    <span className="text-sm text-gray-900">{value}</span>
+  </div>
+);
 
 export default UsersPage;
