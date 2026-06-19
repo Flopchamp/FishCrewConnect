@@ -205,8 +205,11 @@ exports.markMessagesAsRead = async (req, res) => {
     const recipientId = req.user.id;
     const { messageIds } = req.body;
     
-    if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
+    if (!messageIds || !Array.isArray(messageIds)) {
         return res.status(400).json({ message: 'Message IDs array is required.' });
+    }
+    if (messageIds.length === 0) {
+        return res.status(200).json({ success: true, count: 0 });
     }
     
     try {        // Update messages to mark as read
