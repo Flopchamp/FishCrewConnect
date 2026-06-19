@@ -260,6 +260,14 @@ export const authAPI = {
     }
   },
 
+  logout: async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch {
+      // Best-effort — local state is cleared regardless
+    }
+  },
+
   checkEmailExists: async (email) => {
     try {
       const response = await api.post('/api/auth/check-email', { email });
