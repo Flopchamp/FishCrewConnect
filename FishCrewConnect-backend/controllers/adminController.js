@@ -2,6 +2,8 @@ const db = require('../config/db');
 const { clearSettingsCache } = require('../middleware/settingsMiddleware');
 const { refreshPaymentStatistics } = require('../scripts/update-payment-statistics');
 
+const clampLimit = (val, def, max) => Math.min(Math.max(1, parseInt(val) || def), max);
+
 // Get admin dashboard statistics
 exports.getDashboardStats = async (req, res) => {
     try {
@@ -395,8 +397,8 @@ exports.getAllJobs = async (req, res) => {
         // Check if user is an admin
         if (req.user.user_type !== 'admin') {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
-        }        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        }        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = clampLimit(req.query.limit, 10, 100);
         const offset = (page - 1) * limit;
         const status = req.query.status || '';
         const search = req.query.search || '';
@@ -933,8 +935,8 @@ exports.getAdminActivityLog = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = clampLimit(req.query.limit, 50, 200);
         const offset = (page - 1) * limit;
 
         try {
@@ -1115,8 +1117,10 @@ exports.getAllUsers = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        const { status, user_type, search, page = 1, limit = 50 } = req.query;
-        
+        const { status, user_type, search, page: rawPage = 1, limit: rawLimit = 50 } = req.query;
+        const page = Math.max(1, parseInt(rawPage) || 1);
+        const limit = clampLimit(rawLimit, 50, 200);
+
         // Build query conditions
         let whereConditions = [];
         let queryParams = [];
@@ -1141,8 +1145,8 @@ exports.getAllUsers = async (req, res) => {
             : '';
 
         // Calculate offset for pagination
-        const offset = (parseInt(page) - 1) * parseInt(limit);
-        queryParams.push(parseInt(limit), offset);
+        const offset = (page - 1) * limit;
+        queryParams.push(limit, offset);
 
         // Get users with verification info
         const [users] = await db.query(`
@@ -1189,10 +1193,10 @@ exports.getAllUsers = async (req, res) => {
             success: true,
             users: users,
             pagination: {
-                current_page: parseInt(page),
-                limit: parseInt(limit),
+                current_page: page,
+                limit,
                 total: countResult[0].total,
-                total_pages: Math.ceil(countResult[0].total / parseInt(limit))
+                total_pages: Math.ceil(countResult[0].total / limit)
             },
             counts: {
                 all: typeCounts[0].all_users,
@@ -1222,7 +1226,9 @@ exports.getAllPlatformPayments = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        const { page = 1, limit = 50, status, user_type, search, date_range } = req.query;
+        const { status, user_type, search, date_range, page: rawPage2 = 1, limit: rawLimit2 = 50 } = req.query;
+        const page = Math.max(1, parseInt(rawPage2) || 1);
+        const limit = clampLimit(rawLimit2, 50, 200);
         const offset = (page - 1) * limit;
 
         // Build the query
@@ -1274,7 +1280,7 @@ exports.getAllPlatformPayments = async (req, res) => {
             ${whereClause}
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?
-        `, [...params, parseInt(limit), offset]);
+        `, [...params, limit, offset]);
 
         // Get total count for pagination
         const [countResult] = await db.query(`
@@ -1292,10 +1298,10 @@ exports.getAllPlatformPayments = async (req, res) => {
         res.json({
             payments,
             pagination: {
-                current_page: parseInt(page),
+                current_page: page,
                 total_pages: totalPages,
                 total_payments: totalPayments,
-                per_page: parseInt(limit)
+                per_page: limit
             }
         });
 
@@ -1738,7 +1744,9 @@ exports.getUserPaymentHistory = async (req, res) => {
         }
 
         const { userId } = req.params;
-        const { page = 1, limit = 20 } = req.query;
+        const { page: rawPage3 = 1, limit: rawLimit3 = 20 } = req.query;
+        const page = Math.max(1, parseInt(rawPage3) || 1);
+        const limit = clampLimit(rawLimit3, 20, 100);
         const offset = (page - 1) * limit;
 
         // Get payments for the user (both as fisherman and boat owner)
@@ -1776,10 +1784,10 @@ exports.getUserPaymentHistory = async (req, res) => {
         res.json({
             payments,
             pagination: {
-                current_page: parseInt(page),
+                current_page: page,
                 total_pages: totalPages,
                 total_payments: totalPayments,
-                per_page: parseInt(limit)
+                per_page: limit
             }
         });
 
@@ -2054,9 +2062,9 @@ exports.getUserPaymentAnalytics = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        const { date_range = '30', user_type = 'all', limit = 10 } = req.query;
+        const { date_range = '30', user_type = 'all', limit: rawAnalyticsLimit = 10 } = req.query;
         const days = parseInt(date_range);
-        const maxLimit = parseInt(limit);
+        const maxLimit = clampLimit(rawAnalyticsLimit, 10, 100);
 
         // Top performing fishermen (by earnings)
         const [topFishermen] = await db.query(`
