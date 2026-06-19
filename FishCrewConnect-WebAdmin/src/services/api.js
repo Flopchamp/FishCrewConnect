@@ -154,8 +154,8 @@ export const adminAPI = {
     return response.data;
   },
   
-  updateSystemSettings: async (setting, value) => {
-    const response = await api.put('/api/admin/settings', { setting, value });
+  updateSystemSettings: async (settings) => {
+    const response = await api.put('/api/admin/settings', { settings });
     return response.data;
   },
   
