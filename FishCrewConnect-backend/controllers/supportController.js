@@ -8,11 +8,18 @@ exports.submitSupportTicket = async (req, res) => {
     const { category, subject, description, priority } = req.body;
     const userId = req.user.id;
 
+    const VALID_CATEGORIES = ['bug', 'feature', 'payment', 'account', 'job', 'other'];
+
     try {
         // Validate input
         if (!category || !subject || !description) {
-            return res.status(400).json({ 
-                message: 'Category, subject, and description are required' 
+            return res.status(400).json({
+                message: 'Category, subject, and description are required'
+            });
+        }
+        if (!VALID_CATEGORIES.includes(category)) {
+            return res.status(400).json({
+                message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`
             });
         }
 

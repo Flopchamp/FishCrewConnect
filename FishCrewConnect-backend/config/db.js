@@ -38,4 +38,13 @@ pool.getConnection((err, connection) => {
   }
 });
 
-module.exports = pool.promise(); // Export the pool with promise support
+const promisePool = pool.promise();
+
+process.on('SIGINT', () => {
+    pool.end(() => {
+        console.log('Database pool closed.');
+        process.exit(0);
+    });
+});
+
+module.exports = promisePool;

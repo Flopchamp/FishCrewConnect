@@ -5,10 +5,8 @@ const getFullImageUrl = (relativePath, req) => {
     if (!relativePath) return null;
     if (relativePath.startsWith('http')) return relativePath; // Already a full URL
     
-    // Construct full URL using request host
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'localhost:3001';
-    return `${protocol}://${host}${relativePath}`;
+    const base = process.env.BACKEND_URL || 'http://localhost:3001';
+    return `${base}${relativePath}`;
 };
 
 // @desc    Get current user profile with extended profile data

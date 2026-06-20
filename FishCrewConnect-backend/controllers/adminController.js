@@ -565,7 +565,7 @@ exports.getAnalytics = async (req, res) => {
         }
 
         const { period = '30', type = 'overview' } = req.query;
-        const days = parseInt(period);
+        const days = Math.min(Math.max(1, parseInt(period) || 30), 365);
 
         let analyticsData = {};
 
@@ -1372,7 +1372,7 @@ exports.getPaymentAnalytics = async (req, res) => {
         }
 
         const { period = '12' } = req.query; // months
-        const months = parseInt(period);
+        const months = Math.min(Math.max(1, parseInt(period) || 12), 24);
 
         // Get monthly revenue data
         const [monthlyData] = await db.query(`
@@ -1841,7 +1841,7 @@ exports.getCommissionAnalytics = async (req, res) => {
         }
 
         const { date_range = '30', period = 'daily' } = req.query;
-        const days = parseInt(date_range);
+        const days = Math.min(Math.max(1, parseInt(date_range) || 30), 365);
 
         // Daily commission trends
         const [dailyTrends] = await db.query(`
