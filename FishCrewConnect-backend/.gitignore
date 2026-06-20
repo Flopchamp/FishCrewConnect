@@ -36,3 +36,10 @@ logs/
 *.bak
 *.old
 *.new
+
+# Test coverage output
+coverage/
+
+# User-uploaded files
+uploads/cvs/
+uploads/profile-images/
