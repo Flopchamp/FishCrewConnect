@@ -317,8 +317,20 @@ exports.handleMpesaCallback = async (req, res) => {
                 }
             } catch (b2cError) {
                 console.error('B2C payment failed:', b2cError);
-                // Payment to platform is complete, but fisherman payment failed
-                // This should be handled separately - maybe queue for retry
+                await db.query(
+                    'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
+                    [`B2C failed: ${b2cError.message}`, payment.id]
+                );
+                // Notify admin that manual payout is needed
+                await db.query(
+                    'INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)',
+                    [
+                        payment.fisherman_id,
+                        'payment_pending',
+                        `Your payout for job ID ${payment.job_id} could not be sent automatically. Our team will process it manually within 24 hours.`,
+                        `/payment-history`
+                    ]
+                );
             }
 
             // Create notifications

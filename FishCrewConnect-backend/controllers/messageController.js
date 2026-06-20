@@ -85,8 +85,7 @@ exports.getMessages = async (req, res) => {
         res.status(200).json(messagesRows || []);
     } catch (error) {
         console.error('Error fetching messages:', error);
-        // Return empty array on error to prevent UI crashes
-        res.status(200).json([]);
+        res.status(500).json({ message: 'Server error while fetching messages.' });
     }
 };
 
@@ -104,6 +103,9 @@ exports.sendMessage = async (req, res) => {
     
     if (!text || typeof text !== 'string') {
         return res.status(400).json({ message: 'Message text is required and must be a string.' });
+    }
+    if (text.length > 5000) {
+        return res.status(400).json({ message: 'Message text exceeds maximum length of 5000 characters.' });
     }
     
     // Parse recipientId as an integer if it's a string
