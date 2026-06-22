@@ -1,5 +1,6 @@
-const nodemailer = require('nodemailer');
+﻿const nodemailer = require('nodemailer');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 // Email service configuration
 class EmailService {
@@ -24,16 +25,16 @@ class EmailService {
             // Verify connection in production
             if (process.env.NODE_ENV === 'production') {
                 await this.transporter.verify();
-                console.log('Email service connected successfully');
+                logger.info('Email service connected successfully');
             }
         } catch (error) {
-            console.error('Email service configuration error:', error.message);
+            logger.error('Email service configuration error:', error.message);
         }
     }
 
     async sendPasswordResetEmail(userEmail, userName, resetToken) {
         if (!this.transporter) {
-            console.error('Email service not configured');
+            logger.error('Email service not configured');
             return false;
         }
 
@@ -141,11 +142,11 @@ This email was sent to ${userEmail}
             };
 
             const info = await this.transporter.sendMail(mailOptions);
-            console.log(' Password reset email sent successfully:', info.messageId);
+            logger.info(' Password reset email sent successfully:', info.messageId);
             return true;
 
         } catch (error) {
-            console.error(' Error sending password reset email:', error);
+            logger.error(' Error sending password reset email:', error);
             return false;
         }
     }
@@ -153,7 +154,7 @@ This email was sent to ${userEmail}
     // Send OTP email functionality
     async sendOTPEmail(userEmail, userName, otpCode) {
         if (!this.transporter) {
-            console.error('Email service not configured');
+            logger.error('Email service not configured');
             return false;
         }
 
@@ -254,11 +255,11 @@ This email was sent to ${userEmail}
             };
 
             const info = await this.transporter.sendMail(mailOptions);
-            console.log('OTP email sent successfully:', info.messageId);
+            logger.info('OTP email sent successfully:', info.messageId);
             return true;
 
         } catch (error) {
-            console.error(' Error sending OTP email:', error);
+            logger.error(' Error sending OTP email:', error);
             return false;
         }
     }
@@ -292,7 +293,7 @@ This email was sent to ${userEmail}
     // Send support ticket notification to admin team
     async sendSupportTicketNotification(ticketData) {
         if (!this.transporter) {
-            console.error('Email service not configured');
+            logger.error('Email service not configured');
             return false;
         }
 
@@ -382,11 +383,11 @@ This email was sent to ${userEmail}
             };
 
             const info = await this.transporter.sendMail(mailOptions);
-            console.log('Support ticket notification sent successfully:', info.messageId);
+            logger.info('Support ticket notification sent successfully:', info.messageId);
             return true;
 
         } catch (error) {
-            console.error('Error sending support ticket notification:', error);
+            logger.error('Error sending support ticket notification:', error);
             return false;
         }
     }
@@ -394,7 +395,7 @@ This email was sent to ${userEmail}
     // Send support ticket confirmation to user
     async sendSupportTicketConfirmation(confirmationData) {
         if (!this.transporter) {
-            console.error('Email service not configured');
+            logger.error('Email service not configured');
             return false;
         }
 
@@ -474,11 +475,11 @@ This email was sent to ${userEmail}
             };
 
             const info = await this.transporter.sendMail(mailOptions);
-            console.log('Support ticket confirmation sent successfully:', info.messageId);
+            logger.info('Support ticket confirmation sent successfully:', info.messageId);
             return true;
 
         } catch (error) {
-            console.error('Error sending support ticket confirmation:', error);
+            logger.error('Error sending support ticket confirmation:', error);
             return false;
         }
     }
@@ -486,7 +487,7 @@ This email was sent to ${userEmail}
     // Send support ticket response to user
     async sendSupportTicketResponse(responseData) {
         if (!this.transporter) {
-            console.error('Email service not configured');
+            logger.error('Email service not configured');
             return false;
         }
 
@@ -560,11 +561,11 @@ This email was sent to ${userEmail}
             };
 
             const info = await this.transporter.sendMail(mailOptions);
-            console.log('Support ticket response sent successfully:', info.messageId);
+            logger.info('Support ticket response sent successfully:', info.messageId);
             return true;
 
         } catch (error) {
-            console.error('Error sending support ticket response:', error);
+            logger.error('Error sending support ticket response:', error);
             return false;
         }
     }

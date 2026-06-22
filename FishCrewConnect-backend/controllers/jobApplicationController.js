@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Apply for a job
 // @route   POST /api/applications/job/:jobId
@@ -73,12 +74,12 @@ exports.applyForJob = async (req, res) => {
                 }
             }
         } catch (notifError) {
-            console.error('Error sending application notification:', notifError);
+            logger.error('Error sending application notification:', notifError);
         }
 
         res.status(201).json(newApplication[0]);
     } catch (error) {
-        console.error('Error applying for job:', error);
+        logger.error('Error applying for job:', error);
         res.status(500).json({ message: 'Server error while applying for job' });
     }
 };
@@ -90,20 +91,20 @@ exports.getApplicationsForJob = async (req, res) => {
     const { jobId } = req.params;
     const ownerId = req.user.id;
     
-    console.log(`Getting applications for job ID: ${jobId}, requested by owner ID: ${ownerId}`);
+    logger.info(`Getting applications for job ID: ${jobId}, requested by owner ID: ${ownerId}`);
 
     try {
         // Verify the job exists and belongs to the requesting boat owner
         const [jobRows] = await db.query("SELECT user_id, job_title FROM jobs WHERE job_id = ?", [jobId]);
-        console.log('Job query result:', jobRows);
+        logger.info('Job query result:', jobRows);
         
         if (jobRows.length === 0) {
-            console.log(`Job with ID ${jobId} not found`);
+            logger.info(`Job with ID ${jobId} not found`);
             return res.status(404).json({ message: 'Job not found' });
         }
         
         if (jobRows[0].user_id !== ownerId) {
-            console.log(`Authorization error: Job belongs to user ${jobRows[0].user_id}, not requester ${ownerId}`);
+            logger.info(`Authorization error: Job belongs to user ${jobRows[0].user_id}, not requester ${ownerId}`);
             return res.status(403).json({ message: 'You are not authorized to view applications for this job' });
         }        // Get applications with user details and review status
         const [applications] = await db.query(
@@ -127,7 +128,7 @@ exports.getApplicationsForJob = async (req, res) => {
         );
         res.status(200).json(applications);
     } catch (error) {
-        console.error('Error fetching applications for job:', error);
+        logger.error('Error fetching applications for job:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -161,7 +162,7 @@ exports.getMyApplications = async (req, res) => {
         );
         res.status(200).json(applications);
     } catch (error) {
-        console.error('Error fetching my applications:', error);
+        logger.error('Error fetching my applications:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -231,13 +232,13 @@ exports.updateApplicationStatus = async (req, res) => {
                 }
             }
         } catch (notifError) {
-            console.error('Error sending application status notification:', notifError);
+            logger.error('Error sending application status notification:', notifError);
         }
 
         const [updatedApplication] = await db.query("SELECT * FROM job_applications WHERE id = ?", [applicationId]);
         res.status(200).json(updatedApplication[0]);
     } catch (error) {
-        console.error('Error updating application status:', error);
+        logger.error('Error updating application status:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };

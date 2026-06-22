@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Get all conversations for the current user
 // @route   GET /api/messages/conversations
@@ -36,7 +37,7 @@ exports.getConversations = async (req, res) => {
         
         res.status(200).json(conversations);
     } catch (error) {
-        console.error('Error fetching conversations:', error);
+        logger.error('Error fetching conversations:', error);
         res.status(500).json({ message: 'Server error while fetching conversations.' });
     }
 };
@@ -54,7 +55,7 @@ exports.getMessages = async (req, res) => {
     
     // Check if user is trying to message themselves
     if (currentUserId === otherUserId) {
-        console.error(`User ${currentUserId} attempted to get messages with themselves`);
+        logger.error(`User ${currentUserId} attempted to get messages with themselves`);
         return res.status(400).json({ 
             message: 'Cannot retrieve messages with yourself.',
             error: 'SELF_MESSAGING_NOT_ALLOWED'
@@ -62,7 +63,7 @@ exports.getMessages = async (req, res) => {
     }
     
     // Log the request details for debugging
-    console.log(`Getting messages between users ${currentUserId} and ${otherUserId}`);
+    logger.info(`Getting messages between users ${currentUserId} and ${otherUserId}`);
       
     try {        // Get all messages between these two users
         const messagesQuery = "SELECT id, sender_id AS senderId, recipient_id AS recipientId, " +
@@ -75,7 +76,7 @@ exports.getMessages = async (req, res) => {
         ]);
         
         // Log the result for debugging
-        console.log(`Found ${messagesRows.length} messages between users ${currentUserId} and ${otherUserId}`);
+        logger.info(`Found ${messagesRows.length} messages between users ${currentUserId} and ${otherUserId}`);
           // Mark messages as read
         const updateQuery = "UPDATE messages SET is_read = TRUE " +
             "WHERE recipient_id = ? AND sender_id = ? AND is_read = FALSE";
@@ -84,7 +85,7 @@ exports.getMessages = async (req, res) => {
         // Always return an array, even if empty
         res.status(200).json(messagesRows || []);
     } catch (error) {
-        console.error('Error fetching messages:', error);
+        logger.error('Error fetching messages:', error);
         res.status(500).json({ message: 'Server error while fetching messages.' });
     }
 };
@@ -180,7 +181,7 @@ exports.sendMessage = async (req, res) => {
         
         res.status(201).json(messageRows[0]);
     } catch (error) {
-        console.error('Error sending message:', error);
+        logger.error('Error sending message:', error);
         
         // Provide more specific error messages based on the error type
         if (error.code === 'ER_NO_REFERENCED_ROW') {
@@ -223,7 +224,7 @@ exports.markMessagesAsRead = async (req, res) => {
             count: result.affectedRows
         });
     } catch (error) {
-        console.error('Error marking messages as read:', error);
+        logger.error('Error marking messages as read:', error);
         res.status(500).json({ message: 'Server error while marking messages as read.' });
     }
 };

@@ -1,5 +1,6 @@
-const jwt = require('jsonwebtoken');
+﻿const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // Middleware to check if user is verified
 const verificationMiddleware = async (req, res, next) => {
@@ -46,7 +47,7 @@ const verificationMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Verification middleware error:', error);
+    logger.error('Verification middleware error:', error);
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Token expired' });

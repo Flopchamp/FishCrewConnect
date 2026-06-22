@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // Cache for system settings to avoid database hits on every request
 let settingsCache = {};
@@ -34,7 +35,7 @@ const getSystemSettings = async () => {
     
     return parsedSettings;
   } catch (error) {
-    console.error('Error fetching system settings:', error);
+    logger.error('Error fetching system settings:', error);
     // Return default settings if database fails
     return {
       user_registration_enabled: true,
@@ -79,7 +80,7 @@ const checkUserRegistrationEnabled = async (req, res, next) => {
       code: 'REGISTRATION_DISABLED'
     });
   } catch (error) {
-    console.error('Error checking registration setting:', error);
+    logger.error('Error checking registration setting:', error);
     // If we can't check settings, allow registration (fail open for safety)
     next();
   }
@@ -107,7 +108,7 @@ const checkJobPostingEnabled = async (req, res, next) => {
       code: 'JOB_POSTING_DISABLED'
     });
   } catch (error) {
-    console.error('Error checking job posting setting:', error);
+    logger.error('Error checking job posting setting:', error);
     // If we can't check settings, allow for regular users (fail open)
     next();
   }
@@ -135,7 +136,7 @@ const checkMessagingEnabled = async (req, res, next) => {
       code: 'MESSAGING_DISABLED'
     });
   } catch (error) {
-    console.error('Error checking messaging setting:', error);
+    logger.error('Error checking messaging setting:', error);
     next();
   }
 };
@@ -162,7 +163,7 @@ const checkMaintenanceMode = async (req, res, next) => {
     if (emergencyCode) {
       const settings = await getSystemSettings();
       if (emergencyCode === settings.emergency_access_code) {
-        console.log('Emergency access code used:', req.ip);
+        logger.info('Emergency access code used:', req.ip);
         return next();
       }
     }
@@ -179,7 +180,7 @@ const checkMaintenanceMode = async (req, res, next) => {
     
     next();
   } catch (error) {
-    console.error('Error checking maintenance mode:', error);
+    logger.error('Error checking maintenance mode:', error);
     // If we can't check settings, allow access (fail open)
     next();
   }
@@ -193,7 +194,7 @@ const getSetting = async (key, defaultValue = null) => {
     const settings = await getSystemSettings();
     return settings[key] !== undefined ? settings[key] : defaultValue;
   } catch (error) {
-    console.error(`Error getting setting ${key}:`, error);
+    logger.error(`Error getting setting ${key}:`, error);
     return defaultValue;
   }
 };

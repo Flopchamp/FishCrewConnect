@@ -1,5 +1,6 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
 const emailService = require('../services/emailService');
+const logger = require('../utils/logger');
 
 // @desc    Submit support ticket
 // @route   POST /api/support/ticket
@@ -59,7 +60,7 @@ exports.submitSupportTicket = async (req, res) => {
                 priority: priority || 'normal'
             });
         } catch (emailError) {
-            console.error('Failed to send support email notification:', emailError);
+            logger.error('Failed to send support email notification:', emailError);
             // Continue execution even if email fails
         }
 
@@ -72,7 +73,7 @@ exports.submitSupportTicket = async (req, res) => {
                 subject
             });
         } catch (emailError) {
-            console.error('Failed to send confirmation email:', emailError);
+            logger.error('Failed to send confirmation email:', emailError);
             // Continue execution even if email fails
         }
 
@@ -83,7 +84,7 @@ exports.submitSupportTicket = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error submitting support ticket:', error);
+        logger.error('Error submitting support ticket:', error);
         res.status(500).json({ 
             message: 'Failed to submit support ticket',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -140,7 +141,7 @@ exports.getUserSupportTickets = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting support tickets:', error);
+        logger.error('Error getting support tickets:', error);
         res.status(500).json({ 
             message: 'Failed to get support tickets',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -171,7 +172,7 @@ exports.getSupportTicketDetails = async (req, res) => {
         res.json(tickets[0]);
 
     } catch (error) {
-        console.error('Error getting support ticket details:', error);
+        logger.error('Error getting support ticket details:', error);
         res.status(500).json({ 
             message: 'Failed to get support ticket details',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -213,7 +214,7 @@ exports.updateSupportTicket = async (req, res) => {
         res.json({ message: 'Support ticket updated successfully' });
 
     } catch (error) {
-        console.error('Error updating support ticket:', error);
+        logger.error('Error updating support ticket:', error);
         res.status(500).json({ 
             message: 'Failed to update support ticket',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -298,7 +299,7 @@ exports.getAllSupportTickets = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting all support tickets:', error);
+        logger.error('Error getting all support tickets:', error);
         res.status(500).json({ 
             message: 'Failed to get support tickets',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -349,14 +350,14 @@ exports.respondToSupportTicket = async (req, res) => {
                 response
             });
         } catch (emailError) {
-            console.error('Failed to send response email:', emailError);
+            logger.error('Failed to send response email:', emailError);
             // Continue execution even if email fails
         }
 
         res.json({ message: 'Response sent successfully' });
 
     } catch (error) {
-        console.error('Error responding to support ticket:', error);
+        logger.error('Error responding to support ticket:', error);
         res.status(500).json({ 
             message: 'Failed to respond to support ticket',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'

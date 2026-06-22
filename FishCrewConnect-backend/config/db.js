@@ -1,5 +1,6 @@
-const mysql = require('mysql2');
+﻿const mysql = require('mysql2');
 require('dotenv').config(); // To access environment variables
+const logger = require('../utils/logger');
 
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
@@ -15,18 +16,18 @@ const pool = mysql.createPool({
 // Test the connection (optional, but good for immediate feedback)
 pool.getConnection((err, connection) => {
   if (err) {
-    console.error('Error connecting to MySQL database:', err.stack);
+    logger.error('Error connecting to MySQL database:', err.stack);
     if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      console.error('Database connection was closed.');
+      logger.error('Database connection was closed.');
     }
     if (err.code === 'ER_CON_COUNT_ERROR') {
-      console.error('Database has too many connections.');
+      logger.error('Database has too many connections.');
     }
     if (err.code === 'ECONNREFUSED') {
-      console.error('Database connection was refused. Check if server is running and port is correct.');
+      logger.error('Database connection was refused. Check if server is running and port is correct.');
     }
     if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('Database access denied. Check username and password.');
+      logger.error('Database access denied. Check username and password.');
     }
     // You might want to exit the process if the DB connection fails critically on startup
     // process.exit(1);
@@ -34,7 +35,7 @@ pool.getConnection((err, connection) => {
   }
   if (connection) {
     connection.release(); // Release the connection back to the pool
-    console.log('Successfully connected to MySQL database.');
+    logger.info('Successfully connected to MySQL database.');
   }
 });
 
@@ -42,7 +43,7 @@ const promisePool = pool.promise();
 
 process.on('SIGINT', () => {
     pool.end(() => {
-        console.log('Database pool closed.');
+        logger.info('Database pool closed.');
         process.exit(0);
     });
 });

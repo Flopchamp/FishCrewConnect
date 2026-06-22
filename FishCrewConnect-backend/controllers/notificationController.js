@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Get all notifications for the current user
 // @route   GET /api/notifications
@@ -12,7 +13,7 @@ exports.getNotifications = async (req, res) => {
         );
         res.status(200).json(notifications);
     } catch (error) {
-        console.error('Error fetching notifications:', error);
+        logger.error('Error fetching notifications:', error);
         res.status(500).json({ message: 'Server error while fetching notifications.' });
     }
 };
@@ -37,7 +38,7 @@ exports.markNotificationAsRead = async (req, res) => {
         await db.query("UPDATE notifications SET is_read = TRUE WHERE id = ?", [notificationId]);
         res.status(200).json({ message: 'Notification marked as read.' });
     } catch (error) {
-        console.error('Error marking notification as read:', error);
+        logger.error('Error marking notification as read:', error);
         res.status(500).json({ message: 'Server error.' });
     }
 };
@@ -51,7 +52,7 @@ exports.markAllNotificationsAsRead = async (req, res) => {
         await db.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE", [userId]);
         res.status(200).json({ message: 'All unread notifications marked as read.' });
     } catch (error) {
-        console.error('Error marking all notifications as read:', error);
+        logger.error('Error marking all notifications as read:', error);
         res.status(500).json({ message: 'Server error.' });
     }
 };

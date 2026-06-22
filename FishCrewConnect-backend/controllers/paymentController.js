@@ -1,6 +1,7 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
 const darajaService = require('../services/darajaService');
 const { refreshPaymentStatistics } = require('../scripts/update-payment-statistics');
+const logger = require('../utils/logger');
 
 // Platform commission percentage (configurable via admin settings)
 const PLATFORM_COMMISSION_RATE = 0.05; // 5% default
@@ -18,7 +19,7 @@ async function getPlatformCommissionRate() {
         }
         return PLATFORM_COMMISSION_RATE;
     } catch (error) {
-        console.error('Error getting commission rate:', error);
+        logger.error('Error getting commission rate:', error);
         return PLATFORM_COMMISSION_RATE;
     }
 }
@@ -135,7 +136,7 @@ exports.initiateJobPayment = async (req, res) => {
                                 );
                                 
                             } catch (b2cError) {
-                                console.error('Error sending money to fisherman:', b2cError);
+                                logger.error('Error sending money to fisherman:', b2cError);
                                 // Don't fail the main payment, just log the error
                                 await db.query(
                                     'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
@@ -143,7 +144,7 @@ exports.initiateJobPayment = async (req, res) => {
                                 );
                             }
                         } else {
-                            console.log('Warning: Fisherman phone number not found, cannot send B2C payment');
+                            logger.info('Warning: Fisherman phone number not found, cannot send B2C payment');
                         }
                         
                         // Create success notification for fisherman
@@ -171,12 +172,12 @@ exports.initiateJobPayment = async (req, res) => {
                         // Refresh payment statistics
                         await refreshPaymentStatistics();
                     } catch (error) {
-                        console.error('Error in demo payment completion:', error);
+                        logger.error('Error in demo payment completion:', error);
                     }
                 }, 3000);
             }
         } catch (darajaError) {
-            console.error('Daraja service error:', darajaError);
+            logger.error('Daraja service error:', darajaError);
             
             // Update payment status to failed
             await db.query(
@@ -233,7 +234,7 @@ exports.initiateJobPayment = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error initiating job payment:', error.code || error.message);
+        logger.error('Error initiating job payment:', error.code || error.message);
 
         if (error.code === 'ER_NO_SUCH_TABLE') {
             return res.status(500).json({ message: 'Database setup incomplete. Please run migrations.' });
@@ -258,7 +259,7 @@ exports.handleMpesaCallback = async (req, res) => {
         );
 
         if (payments.length === 0) {
-            console.error('Payment not found for CheckoutRequestID:', CheckoutRequestID);
+            logger.error('Payment not found for CheckoutRequestID:', CheckoutRequestID);
             return res.status(404).json({ message: 'Payment not found' });
         }
 
@@ -284,7 +285,7 @@ exports.handleMpesaCallback = async (req, res) => {
 
             // Refresh payment statistics after successful payment
             refreshPaymentStatistics().catch(err => 
-                console.error('Failed to refresh payment statistics:', err)
+                logger.error('Failed to refresh payment statistics:', err)
             );
 
             // Update job status to completed
@@ -313,10 +314,10 @@ exports.handleMpesaCallback = async (req, res) => {
                         [b2cResult.ConversationID, b2cResult.OriginatorConversationID, payment.id]
                     );
 
-                    console.log('B2C payment initiated for fisherman:', fisherman[0].name);
+                    logger.info('B2C payment initiated for fisherman:', fisherman[0].name);
                 }
             } catch (b2cError) {
-                console.error('B2C payment failed:', b2cError);
+                logger.error('B2C payment failed:', b2cError);
                 await db.query(
                     'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
                     [`B2C failed: ${b2cError.message}`, payment.id]
@@ -368,7 +369,7 @@ exports.handleMpesaCallback = async (req, res) => {
 
             // Refresh payment statistics after failed payment
             refreshPaymentStatistics().catch(err => 
-                console.error('Failed to refresh payment statistics:', err)
+                logger.error('Failed to refresh payment statistics:', err)
             );
 
             // Notify boat owner
@@ -389,7 +390,7 @@ exports.handleMpesaCallback = async (req, res) => {
         res.status(200).json({ message: 'Callback processed' });
 
     } catch (error) {
-        console.error('Error processing M-Pesa callback:', error);
+        logger.error('Error processing M-Pesa callback:', error);
         res.status(500).json({ message: 'Error processing callback' });
     }
 };
@@ -418,7 +419,7 @@ exports.getPaymentStatus = async (req, res) => {
 
         res.json(payments[0]);
     } catch (error) {
-        console.error('Error getting payment status:', error);
+        logger.error('Error getting payment status:', error);
         res.status(500).json({ message: 'Failed to get payment status' });
     }
 };
@@ -459,7 +460,7 @@ exports.getPaymentHistory = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error getting payment history:', error);
+        logger.error('Error getting payment history:', error);
         res.status(500).json({ message: 'Failed to get payment history' });
     }
 };
@@ -469,7 +470,7 @@ exports.getPaymentHistory = async (req, res) => {
 // @access  Public (M-Pesa callback)
 exports.handleB2CResult = async (req, res) => {
     try {
-        console.log('B2C Result callback:', req.body);
+        logger.info('B2C Result callback:', req.body);
         
         const { Result } = req.body;
         const { ConversationID, ResultCode, ResultDesc } = Result;
@@ -489,20 +490,20 @@ exports.handleB2CResult = async (req, res) => {
                     'UPDATE job_payments SET b2c_status = "completed", b2c_result_desc = ? WHERE id = ?',
                     [ResultDesc, payment.id]
                 );
-                console.log('B2C payment completed successfully for payment ID:', payment.id);
+                logger.info('B2C payment completed successfully for payment ID:', payment.id);
             } else {
                 // B2C payment failed
                 await db.query(
                     'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
                     [ResultDesc, payment.id]
                 );
-                console.error('B2C payment failed for payment ID:', payment.id, ResultDesc);
+                logger.error('B2C payment failed for payment ID:', payment.id, ResultDesc);
             }
         }
 
         res.status(200).json({ message: 'B2C result processed' });
     } catch (error) {
-        console.error('Error processing B2C result:', error);
+        logger.error('Error processing B2C result:', error);
         res.status(500).json({ message: 'Error processing B2C result' });
     }
 };
@@ -512,10 +513,10 @@ exports.handleB2CResult = async (req, res) => {
 // @access  Public (M-Pesa callback)
 exports.handleTimeout = async (req, res) => {
     try {
-        console.log('M-Pesa timeout callback:', req.body);
+        logger.info('M-Pesa timeout callback:', req.body);
         res.status(200).json({ message: 'Timeout processed' });
     } catch (error) {
-        console.error('Error processing timeout:', error);
+        logger.error('Error processing timeout:', error);
         res.status(500).json({ message: 'Error processing timeout' });
     }
 };

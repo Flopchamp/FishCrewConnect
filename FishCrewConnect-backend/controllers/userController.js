@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // Helper function to convert relative image URLs to full URLs
 const getFullImageUrl = (relativePath, req) => {
@@ -93,7 +94,7 @@ exports.getUserProfile = async (req, res) => {
                 userData.review_count = reviewData[0].review_count || 0;
             }
         } catch (error) {
-            console.error('Error fetching rating data:', error);
+            logger.error('Error fetching rating data:', error);
             // Continue without rating data if there's an error
         }
 
@@ -103,7 +104,7 @@ exports.getUserProfile = async (req, res) => {
 
         res.json(userData);
     } catch (error) {
-        console.error('Error fetching user profile:', error.message);
+        logger.error('Error fetching user profile:', error.message);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -205,7 +206,7 @@ exports.updateUserProfile = async (req, res) => {
             }
         }
     } catch (validationError) {
-        console.error('Validation error:', validationError);
+        logger.error('Validation error:', validationError);
         return res.status(500).json({ message: 'Error validating profile data' });
     }
 
@@ -335,7 +336,7 @@ exports.updateUserProfile = async (req, res) => {
         }
         
         res.json(userData);    } catch (error) {
-        console.error('Update user profile error:', error);
+        logger.error('Update user profile error:', error);
         
         // Provide more detailed error messages based on the type of error
         if (error.code === 'ER_NO_REFERENCED_ROW') {
@@ -344,7 +345,7 @@ exports.updateUserProfile = async (req, res) => {
             res.status(409).json({ message: 'A record with this information already exists.' });
         } else if (error.sql) {
             // SQL error but don't expose SQL details to client
-            console.error('SQL error in profile update:', error.sql);
+            logger.error('SQL error in profile update:', error.sql);
             res.status(500).json({ message: 'Database error while updating profile.' });
         } else {
             res.status(500).json({ message: 'Server error while updating profile.' });
@@ -379,7 +380,7 @@ exports.getUserRating = async (req, res) => {
             message: 'User rating retrieved successfully'
         });
     } catch (error) {
-        console.error('Error getting user rating:', error.message);
+        logger.error('Error getting user rating:', error.message);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -446,7 +447,7 @@ exports.getAllContacts = async (req, res) => {
 
         res.json(formattedContacts);
     } catch (error) {
-        console.error('Error fetching contacts:', error);
+        logger.error('Error fetching contacts:', error);
         res.status(500).json({ message: 'Server error while fetching contacts.' });
     }
 };
@@ -522,7 +523,7 @@ exports.getUserById = async (req, res) => {
 
         res.json(userData);
     } catch (error) {
-        console.error('Error getting user by ID:', error);
+        logger.error('Error getting user by ID:', error);
         res.status(500).json({ message: 'Server error while fetching user profile.' });
     }
 };

@@ -1,6 +1,7 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
 const { clearSettingsCache } = require('../middleware/settingsMiddleware');
 const { refreshPaymentStatistics } = require('../scripts/update-payment-statistics');
+const logger = require('../utils/logger');
 
 const clampLimit = (val, def, max) => Math.min(Math.max(1, parseInt(val) || def), max);
 
@@ -136,7 +137,7 @@ exports.getDashboardStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
+        logger.error('Error fetching dashboard stats:', error);
         res.status(500).json({ message: 'Internal server error while fetching dashboard statistics' });
     }
 };
@@ -179,7 +180,7 @@ exports.getUserStats = async (req, res) => {
             activeUsers: activeUsers[0].active_count
         });
     } catch (error) {
-        console.error('Error fetching user stats:', error);
+        logger.error('Error fetching user stats:', error);
         res.status(500).json({ message: 'Internal server error while fetching user statistics' });
     }
 };
@@ -217,7 +218,7 @@ exports.getUserById = async (req, res) => {
 
         res.json(user);
     } catch (error) {
-        console.error('Error fetching user by ID:', error);
+        logger.error('Error fetching user by ID:', error);
         res.status(500).json({ message: 'Internal server error while fetching user details' });
     }
 };
@@ -254,7 +255,7 @@ exports.updateUserStatus = async (req, res) => {
 
         // Log the action
         const action = `User status changed to ${status}`;
-        console.log(`Admin ${req.user.id} performed ${action} on user ${id}. Reason: ${reason || 'No reason provided'}`);
+        logger.info(`Admin ${req.user.id} performed ${action} on user ${id}. Reason: ${reason || 'No reason provided'}`);
 
         res.json({ 
             message: `User status updated to ${status} successfully`,
@@ -262,7 +263,7 @@ exports.updateUserStatus = async (req, res) => {
             reason
         });
     } catch (error) {
-        console.error('Error updating user status:', error);
+        logger.error('Error updating user status:', error);
         res.status(500).json({ message: 'Internal server error while updating user status' });
     }
 };
@@ -307,7 +308,7 @@ exports.suspendUser = async (req, res) => {
             JSON.stringify({ reason, duration, suspensionEnd })
         ]);
 
-        console.log(`Admin ${req.user.id} suspended user ${userId}. Reason: ${reason || 'No reason provided'}`);
+        logger.info(`Admin ${req.user.id} suspended user ${userId}. Reason: ${reason || 'No reason provided'}`);
 
         res.json({ 
             message: 'User suspended successfully',
@@ -315,7 +316,7 @@ exports.suspendUser = async (req, res) => {
             reason
         });
     } catch (error) {
-        console.error('Error suspending user:', error);
+        logger.error('Error suspending user:', error);
         res.status(500).json({ message: 'Internal server error while suspending user' });
     }
 };
@@ -347,14 +348,14 @@ exports.unsuspendUser = async (req, res) => {
             JSON.stringify({ reason })
         ]);
 
-        console.log(`Admin ${req.user.id} unsuspended user ${userId}. Reason: ${reason || 'No reason provided'}`);
+        logger.info(`Admin ${req.user.id} unsuspended user ${userId}. Reason: ${reason || 'No reason provided'}`);
 
         res.json({ 
             message: 'User unsuspended successfully',
             reason
         });
     } catch (error) {
-        console.error('Error unsuspending user:', error);
+        logger.error('Error unsuspending user:', error);
         res.status(500).json({ message: 'Internal server error while unsuspending user' });
     }
 };
@@ -386,7 +387,7 @@ exports.getUserSuspensionHistory = async (req, res) => {
 
         res.json(history);
     } catch (error) {
-        console.error('Error fetching user suspension history:', error);
+        logger.error('Error fetching user suspension history:', error);
         res.status(500).json({ message: 'Internal server error while fetching suspension history' });
     }
 };
@@ -485,7 +486,7 @@ exports.getAllJobs = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching all jobs:', error);
+        logger.error('Error fetching all jobs:', error);
         res.status(500).json({ message: 'Internal server error while fetching jobs' });
     }
 };
@@ -519,7 +520,7 @@ exports.updateJobStatus = async (req, res) => {
 
         // Use the trimmed status for the update
         const finalStatus = typeof status === 'string' ? status.trim() : status;        // Update job status
-        console.log(`Updating job ${id} to status ${finalStatus}`);
+        logger.info(`Updating job ${id} to status ${finalStatus}`);
         const [updateResult] = await db.query('UPDATE jobs SET status = ? WHERE job_id = ?', [finalStatus, id]);
         
         if (updateResult.affectedRows === 0) {
@@ -543,15 +544,15 @@ exports.updateJobStatus = async (req, res) => {
                 ]);
             }
         } catch (logError) {
-            console.log('Admin action logging failed (non-critical):', logError.message);
-        }        console.log(`Job ${id} status updated successfully to ${finalStatus}`);
+            logger.info('Admin action logging failed (non-critical):', logError.message);
+        }        logger.info(`Job ${id} status updated successfully to ${finalStatus}`);
         res.json({ 
             message: `Job status updated to ${finalStatus} successfully`,
             status: finalStatus,
             reason
         });
     } catch (error) {
-        console.error('Error updating job status:', error);
+        logger.error('Error updating job status:', error);
         res.status(500).json({ message: 'Internal server error while updating job status' });
     }
 };
@@ -756,7 +757,7 @@ exports.getAnalytics = async (req, res) => {
 
         res.json(analyticsData);
     } catch (error) {
-        console.error('Error fetching analytics:', error);
+        logger.error('Error fetching analytics:', error);
         res.status(500).json({ message: 'Internal server error while fetching analytics' });
     }
 };
@@ -802,7 +803,7 @@ exports.getSystemSettings = async (req, res) => {
                 timestamp: r.created_at
             }));
         } catch (e) {
-            console.log('admin_actions not yet populated:', e.message);
+            logger.info('admin_actions not yet populated:', e.message);
         }
 
         // DB size stats
@@ -830,7 +831,7 @@ exports.getSystemSettings = async (req, res) => {
             lastUpdated: new Date()
         });
     } catch (error) {
-        console.error('Error fetching system settings:', error);
+        logger.error('Error fetching system settings:', error);
         res.status(500).json({ message: 'Internal server error while fetching system settings' });
     }
 };
@@ -907,7 +908,7 @@ exports.updateSystemSettings = async (req, res) => {
             updated: validKeys
         });
     } catch (error) {
-        console.error('Error updating system settings:', error);
+        logger.error('Error updating system settings:', error);
         res.status(500).json({ message: 'Internal server error while updating system settings' });
     }
 };
@@ -970,7 +971,7 @@ exports.getAdminActivityLog = async (req, res) => {
                 }
             });
         } catch (error) {
-            console.log('Admin actions table issue:', error.message);
+            logger.info('Admin actions table issue:', error.message);
             // Return mock data if table doesn't exist
             const mockActivities = [];
             for (let i = 0; i < Math.min(limit, 10); i++) {
@@ -995,7 +996,7 @@ exports.getAdminActivityLog = async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Error fetching admin activity log:', error);
+        logger.error('Error fetching admin activity log:', error);
         res.status(500).json({ message: 'Internal server error while fetching activity log' });
     }
 };
@@ -1035,7 +1036,7 @@ exports.getPendingUsers = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get pending users error:', error);
+        logger.error('Get pending users error:', error);
         res.status(500).json({ message: 'Server error fetching pending users.' });
     }
 };
@@ -1105,7 +1106,7 @@ exports.verifyUser = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Verify user error:', error);
+        logger.error('Verify user error:', error);
         res.status(500).json({ message: 'Server error verifying user.' });
     }
 };
@@ -1209,7 +1210,7 @@ exports.getAllUsers = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Get all users error:', error);
+        logger.error('Get all users error:', error);
         res.status(500).json({ message: 'Server error fetching users.' });
     }
 };
@@ -1306,7 +1307,7 @@ exports.getAllPlatformPayments = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching platform payments:', error);
+        logger.error('Error fetching platform payments:', error);
         res.status(500).json({ message: 'Internal server error while fetching payments' });
     }
 };
@@ -1358,7 +1359,7 @@ exports.getPaymentStatistics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching payment statistics:', error);
+        logger.error('Error fetching payment statistics:', error);
         res.status(500).json({ message: 'Internal server error while fetching payment statistics' });
     }
 };
@@ -1422,7 +1423,7 @@ exports.getPaymentAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching payment analytics:', error);
+        logger.error('Error fetching payment analytics:', error);
         res.status(500).json({ message: 'Internal server error while fetching payment analytics' });
     }
 };
@@ -1459,7 +1460,7 @@ exports.getPaymentDisputes = async (req, res) => {
         res.json({ disputes });
 
     } catch (error) {
-        console.error('Error fetching payment disputes:', error);
+        logger.error('Error fetching payment disputes:', error);
         res.status(500).json({ message: 'Internal server error while fetching payment disputes' });
     }
 };
@@ -1504,7 +1505,7 @@ exports.resolvePaymentDispute = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error resolving payment dispute:', error);
+        logger.error('Error resolving payment dispute:', error);
         res.status(500).json({ message: 'Internal server error while resolving dispute' });
     }
 };
@@ -1562,7 +1563,7 @@ exports.processPaymentRefund = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error processing refund:', error);
+        logger.error('Error processing refund:', error);
         res.status(500).json({ message: 'Internal server error while processing refund' });
     }
 };
@@ -1611,7 +1612,7 @@ exports.reversePayment = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error reversing payment:', error);
+        logger.error('Error reversing payment:', error);
         res.status(500).json({ message: 'Internal server error while reversing payment' });
     }
 };
@@ -1667,7 +1668,7 @@ exports.getPaymentConfig = async (req, res) => {
         res.json(config);
 
     } catch (error) {
-        console.error('Error fetching payment config:', error);
+        logger.error('Error fetching payment config:', error);
         res.status(500).json({ message: 'Internal server error while fetching payment configuration' });
     }
 };
@@ -1722,7 +1723,7 @@ exports.updatePaymentConfig = async (req, res) => {
                     VALUES (?, 'update_payment_config', ?, 'system', NULL, ?, ?, ?, NOW())
                 `, [req.user.id, 'Updated payment configuration settings', JSON.stringify(req.body), req.ip, req.get('User-Agent') || '']);
             } catch (logError) {
-                console.error('Error logging admin action:', logError);
+                logger.error('Error logging admin action:', logError);
                 // Don't fail the main operation if logging fails
             }
         }
@@ -1730,7 +1731,7 @@ exports.updatePaymentConfig = async (req, res) => {
         res.json({ message: 'Payment configuration updated successfully' });
 
     } catch (error) {
-        console.error('Error updating payment config:', error);
+        logger.error('Error updating payment config:', error);
         res.status(500).json({ message: 'Internal server error while updating payment configuration' });
     }
 };
@@ -1792,7 +1793,7 @@ exports.getUserPaymentHistory = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching user payment history:', error);
+        logger.error('Error fetching user payment history:', error);
         res.status(500).json({ message: 'Internal server error while fetching user payment history' });
     }
 };
@@ -1827,7 +1828,7 @@ exports.generatePaymentReport = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error generating payment report:', error);
+        logger.error('Error generating payment report:', error);
         res.status(500).json({ message: 'Internal server error while generating payment report' });
     }
 };
@@ -1973,7 +1974,7 @@ exports.getCommissionAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching commission analytics:', error);
+        logger.error('Error fetching commission analytics:', error);
         res.status(500).json({ message: 'Internal server error while fetching commission analytics' });
     }
 };
@@ -2038,7 +2039,7 @@ exports.overridePaymentStatus = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error overriding payment status:', error);
+        logger.error('Error overriding payment status:', error);
         res.status(500).json({ message: 'Internal server error while overriding payment status' });
     }
 };
@@ -2051,7 +2052,7 @@ exports.refreshPaymentStatistics = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
         }
 
-        console.log('Admin manually refreshing payment statistics...');
+        logger.info('Admin manually refreshing payment statistics...');
         const result = await refreshPaymentStatistics();
 
         if (result.success) {
@@ -2067,7 +2068,7 @@ exports.refreshPaymentStatistics = async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Error refreshing payment statistics:', error);
+        logger.error('Error refreshing payment statistics:', error);
         res.status(500).json({ message: 'Internal server error while refreshing payment statistics' });
     }
 };
@@ -2363,7 +2364,7 @@ exports.getUserPaymentAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching user payment analytics:', error);
+        logger.error('Error fetching user payment analytics:', error);
         res.status(500).json({ message: 'Internal server error while fetching user payment analytics' });
     }
 };
