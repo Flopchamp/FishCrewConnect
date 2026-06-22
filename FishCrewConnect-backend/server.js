@@ -1,8 +1,9 @@
-const http = require('http');
+﻿const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const app = require('./app');
 const db = require('./config/db');
+const logger = require('./utils/logger');
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -92,7 +93,7 @@ io.on('connection', (socket) => {
                 read: false,
             });
         } catch (error) {
-            console.error('Error handling send_message event:', error);
+            logger.error('Error handling send_message event:', error);
         }
     });
 });
@@ -108,5 +109,5 @@ app.get('/socket-health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-    console.log(` FishCrewConnect Server running on port ${PORT}`);
+    logger.info(` FishCrewConnect Server running on port ${PORT}`);
 });
