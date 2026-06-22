@@ -5,6 +5,17 @@ const app = require('./app');
 const db = require('./config/db');
 const logger = require('./utils/logger');
 
+// Fail fast if critical env vars are absent
+const REQUIRED_ENV = ['JWT_SECRET', 'MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE'];
+if (process.env.NODE_ENV === 'production') {
+    REQUIRED_ENV.push('BACKEND_URL');
+}
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+    logger.error(`Missing required environment variables: ${missing.join(', ')}`);
+    process.exit(1);
+}
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8081'];
