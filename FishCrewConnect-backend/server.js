@@ -2,6 +2,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const app = require('./app');
+const db = require('./config/db');
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -57,16 +58,39 @@ io.on('connection', (socket) => {
     socket.on('send_message', async (messageData) => {
         try {
             const { recipientId, text } = messageData;
-            if (recipientId && text) {
-                io.to(recipientId.toString()).emit('new_message', {
-                    id: Date.now(),
-                    senderId: socket.userId,
-                    recipientId,
-                    text,
-                    timestamp: new Date().toISOString(),
-                    read: false,
-                });
-            }
+            if (!recipientId || !text || typeof text !== 'string') return;
+            if (text.length > 5000) return;
+
+            const senderId = parseInt(socket.userId, 10);
+            const parsedRecipientId = parseInt(recipientId, 10);
+            if (isNaN(parsedRecipientId) || senderId === parsedRecipientId) return;
+
+            // Verify sender and recipient share a job-application relationship,
+            // or at least one is an admin — mirrors the REST contact-filter logic.
+            const [rel] = await db.query(
+                `SELECT 1
+                 FROM users u
+                 WHERE u.user_id IN (?, ?)
+                   AND u.user_type = 'admin'
+                 UNION
+                 SELECT 1
+                 FROM job_applications ja
+                 JOIN jobs j ON ja.job_id = j.job_id
+                 WHERE (ja.user_id = ? AND j.user_id = ?)
+                    OR (ja.user_id = ? AND j.user_id = ?)
+                 LIMIT 1`,
+                [senderId, parsedRecipientId, senderId, parsedRecipientId, parsedRecipientId, senderId]
+            );
+            if (rel.length === 0) return;
+
+            io.to(parsedRecipientId.toString()).emit('new_message', {
+                id: Date.now(),
+                senderId: socket.userId,
+                recipientId: parsedRecipientId,
+                text,
+                timestamp: new Date().toISOString(),
+                read: false,
+            });
         } catch (error) {
             console.error('Error handling send_message event:', error);
         }
@@ -84,5 +108,5 @@ app.get('/socket-health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-    console.log(`🚀 FishCrewConnect Server running on port ${PORT}`);
+    console.log(` FishCrewConnect Server running on port ${PORT}`);
 });
