@@ -1,5 +1,6 @@
-const axios = require('axios');
+﻿const axios = require('axios');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 class DarajaService {
     constructor() {
@@ -32,8 +33,8 @@ class DarajaService {
 
             const auth = Buffer.from(`${this.consumerKey}:${this.consumerSecret}`).toString('base64');
             
-            console.log('Requesting Daraja access token from:', `${this.baseURL}/oauth/v1/generate?grant_type=client_credentials`);
-            console.log('Using credentials:', {
+            logger.info('Requesting Daraja access token from:', `${this.baseURL}/oauth/v1/generate?grant_type=client_credentials`);
+            logger.info('Using credentials:', {
                 consumerKey: this.consumerKey ? `${this.consumerKey.substring(0, 10)}...` : 'MISSING',
                 consumerSecret: this.consumerSecret ? `${this.consumerSecret.substring(0, 10)}...` : 'MISSING',
                 baseURL: this.baseURL
@@ -50,11 +51,11 @@ class DarajaService {
             this.accessToken = response.data.access_token;
             this.tokenExpiry = Date.now() + (response.data.expires_in * 1000);
             
-            console.log('Successfully obtained Daraja access token');
+            logger.info('Successfully obtained Daraja access token');
             return this.accessToken;
         } catch (error) {
-            console.error('Error getting Daraja access token:', error.response?.data || error.message);
-            console.error('Full error details:', {
+            logger.error('Error getting Daraja access token:', error.response?.data || error.message);
+            logger.error('Full error details:', {
                 status: error.response?.status,
                 statusText: error.response?.statusText,
                 data: error.response?.data,
@@ -81,7 +82,7 @@ class DarajaService {
             
             if (isDemoMode) {
                 // Use provided test credentials for demonstration
-                console.log('Using DEMO M-Pesa credentials for testing...');
+                logger.info('Using DEMO M-Pesa credentials for testing...');
                 requestData = {
                     BusinessShortCode: "174379",
                     Password: "MTc0Mzc5YmZiMjc5ZjlhYTliZGJjZjE1OGU5N2RkNzFhNDY3Y2QyZTBjODkzMDU5YjEwZjc4ZTZiNzJhZGExZWQyYzkxOTIwMTYwMjE2MTY1NjI3",
@@ -118,14 +119,14 @@ class DarajaService {
                 };
             }
 
-            console.log('Initiating STK Push with data:', {
+            logger.info('Initiating STK Push with data:', {
                 ...requestData,
                 Password: '[HIDDEN]'
             });
 
             if (isDemoMode) {
                 // In demo mode, simulate a successful response
-                console.log('DEMO MODE: Simulating successful STK Push response...');
+                logger.info('DEMO MODE: Simulating successful STK Push response...');
                 return {
                     MerchantRequestID: `DEMO_MERCHANT_${Date.now()}`,
                     CheckoutRequestID: `ws_CO_${Date.now()}`,
@@ -149,11 +150,11 @@ class DarajaService {
                 }
             );
 
-            console.log('STK Push response:', response.data);
+            logger.info('STK Push response:', response.data);
             return response.data;
         } catch (error) {
-            console.error('STK Push error:', error.response?.data || error.message);
-            console.error('STK Push error details:', {
+            logger.error('STK Push error:', error.response?.data || error.message);
+            logger.error('STK Push error details:', {
                 status: error.response?.status,
                 statusText: error.response?.statusText,
                 data: error.response?.data
@@ -171,7 +172,7 @@ class DarajaService {
             const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
             
             if (isDemoMode) {
-                console.log('DEMO MODE: Simulating B2C payment...');
+                logger.info('DEMO MODE: Simulating B2C payment...');
                 return {
                     ConversationID: `AG_${Date.now()}_DEMO`,
                     OriginatorConversationID: `DEMO_${Date.now()}`,
@@ -209,7 +210,7 @@ class DarajaService {
 
             return response.data;
         } catch (error) {
-            console.error('B2C Payment error:', error.response?.data || error.message);
+            logger.error('B2C Payment error:', error.response?.data || error.message);
             throw new Error('Failed to send M-Pesa payment');
         }
     }
@@ -221,7 +222,7 @@ class DarajaService {
             const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
             
             if (isDemoMode) {
-                console.log('DEMO MODE: Simulating transaction status query...');
+                logger.info('DEMO MODE: Simulating transaction status query...');
                 return {
                     ResponseCode: "0",
                     ResponseDescription: "The service request has been accepted successfully",
@@ -255,7 +256,7 @@ class DarajaService {
 
             return response.data;
         } catch (error) {
-            console.error('Query transaction error:', error.response?.data || error.message);
+            logger.error('Query transaction error:', error.response?.data || error.message);
             throw new Error('Failed to query transaction status');
         }
     }

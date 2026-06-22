@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Create a new job posting
 // @route   POST /api/jobs
@@ -82,13 +83,13 @@ exports.createJob = async (req, res) => {
             }
         } catch (notifError) {
             // Log notification error but don't fail the job creation
-            console.error('Error sending notifications to fishermen:', notifError);
+            logger.error('Error sending notifications to fishermen:', notifError);
         }
 
         res.status(201).json(jobRows[0]);
 
     } catch (error) {
-        console.error('Error creating job:', error);
+        logger.error('Error creating job:', error);
         // Check for specific MySQL errors if needed, e.g., foreign key constraint
         if (error.code === 'ER_NO_REFERENCED_ROW_2' && error.message.includes('fk_jobs_users')) {
              return res.status(400).json({ message: 'Invalid user ID for job posting.' });
@@ -108,7 +109,7 @@ exports.getAllJobs = async (req, res) => {
         const [jobs] = await db.query('SELECT * FROM jobs ORDER BY created_at DESC');
         res.json(jobs);
     } catch (error) {
-        console.error('Error fetching all jobs:', error);
+        logger.error('Error fetching all jobs:', error);
         res.status(500).json({ message: 'Server error while fetching jobs.' });
     }
 };
@@ -128,7 +129,7 @@ exports.getJobById = async (req, res) => {
 
         res.json(jobRows[0]);
     } catch (error) {
-        console.error('Error fetching job by ID:', error);
+        logger.error('Error fetching job by ID:', error);
         // Check if the error is due to an invalid format for jobId (e.g., not a number)
         if (error.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD' || error.code === 'WARN_DATA_TRUNCATED') {
             return res.status(400).json({ message: 'Invalid job ID format.' });
@@ -247,7 +248,7 @@ exports.updateJob = async (req, res) => {
                         }
                     }
                 } catch (notifError) {
-                    console.error('Error sending job status notifications:', notifError);
+                    logger.error('Error sending job status notifications:', notifError);
                 }
             }
         }
@@ -255,7 +256,7 @@ exports.updateJob = async (req, res) => {
         res.json(updatedJobRows[0]);
 
     } catch (error) {
-        console.error('Error updating job:', error);
+        logger.error('Error updating job:', error);
         // Check for specific MySQL errors if needed
         if (error.code === 'ER_NO_REFERENCED_ROW_2' && error.message.includes('fk_jobs_users')) {
              return res.status(400).json({ message: 'Invalid user ID for job posting.' });
@@ -290,7 +291,7 @@ exports.deleteJob = async (req, res) => {
         // await db.query('DELETE FROM job_applications WHERE job_id = ?', [jobId]);
         // await db.query('DELETE FROM notifications WHERE job_id = ?', [jobId]);        res.json({ message: 'Job deleted successfully.' });
     } catch (error) {
-        console.error('Error deleting job:', error);
+        logger.error('Error deleting job:', error);
         res.status(500).json({ message: 'Server error while deleting job.' });
     }
 };
@@ -324,7 +325,7 @@ exports.getMyJobs = async (req, res) => {
         
         res.json(jobRows);
     } catch (error) {
-        console.error('Error fetching user jobs:', error);
+        logger.error('Error fetching user jobs:', error);
         res.status(500).json({ message: 'Server error while fetching jobs.' });
     }
 };

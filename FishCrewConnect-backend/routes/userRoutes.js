@@ -1,9 +1,10 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const reviewController = require('../controllers/reviewController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { uploadProfileImage, handleUploadError } = require('../middleware/uploadMiddleware');
+const logger = require('../utils/logger');
 
 // @route   GET /api/users/me
 // @desc    Get current logged-in user's profile
@@ -33,13 +34,13 @@ router.get('/:id', userController.getUserById);
 
 // Diagnostic route to test authMiddleware
 router.get('/test-auth', authMiddleware, (req, res) => {
-  console.log('Accessed /api/users/test-auth. req.user:', req.user);
+  logger.info('Accessed /api/users/test-auth. req.user:', req.user);
   if (req.user) {
     res.json({ message: 'Auth middleware seems to be working!', user: req.user });
   } else {
     // This case should ideally be caught by authMiddleware not calling next() or erroring,
     // but as a fallback:
-    console.error('/api/users/test-auth reached but req.user is not set!');
+    logger.error('/api/users/test-auth reached but req.user is not set!');
     res.status(500).json({ message: 'Server error: req.user not populated by middleware.' });
   }
 });

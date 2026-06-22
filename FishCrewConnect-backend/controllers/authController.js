@@ -1,9 +1,10 @@
-const bcrypt = require('bcryptjs');
+﻿const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../config/db'); // MySQL connection pool
 const emailService = require('../services/emailService'); // Email service
 require('dotenv').config(); // To access JWT_SECRET from .env
+const logger = require('../utils/logger');
 
 // Signup controller
 exports.signup = async (req, res) => {
@@ -85,7 +86,7 @@ exports.signup = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Signup error:', error);
+        logger.error('Signup error:', error);
         // Check for specific MySQL errors if needed, e.g., error.code === 'ER_DUP_ENTRY'
         res.status(500).json({ message: 'Server error during registration.' });
     }
@@ -164,7 +165,7 @@ exports.signin = async (req, res) => {
         );
 
     } catch (err) {
-        console.error('Error during sign-in:', err.message);
+        logger.error('Error during sign-in:', err.message);
         res.status(500).send('Server error');
     }
 };
@@ -240,11 +241,11 @@ exports.refreshToken = async (req, res) => {
             });
             
         } catch (error) {
-            console.error('Error decoding token:', error);
+            logger.error('Error decoding token:', error);
             return res.status(401).json({ message: 'Invalid token' });
         }
     } catch (error) {
-        console.error('Error in refreshToken:', error);
+        logger.error('Error in refreshToken:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -298,12 +299,12 @@ exports.forgotPassword = async (req, res) => {
             );
 
             if (emailSent) {
-                console.log(`✅ Password reset email sent to ${email}`);
+                logger.info(`✅ Password reset email sent to ${email}`);
             } else {
-                console.log(`❌ Failed to send password reset email to ${email}`);
+                logger.info(`❌ Failed to send password reset email to ${email}`);
             }
         } catch (emailError) {
-            console.error('Email service error:', emailError);
+            logger.error('Email service error:', emailError);
         }
 
         // Always return success message for security (don't reveal if email failed to send)
@@ -312,7 +313,7 @@ exports.forgotPassword = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Forgot password error:', error);
+        logger.error('Forgot password error:', error);
         res.status(500).json({ message: 'Server error during password reset request.' });
     }
 };
@@ -361,7 +362,7 @@ exports.resetPassword = async (req, res) => {
         res.status(200).json({ message: 'Password has been reset successfully. You can now sign in with your new password.' });
 
     } catch (error) {
-        console.error('Reset password error:', error);
+        logger.error('Reset password error:', error);
         res.status(500).json({ message: 'Server error during password reset.' });
     }
 };
@@ -406,7 +407,7 @@ exports.checkEmail = async (req, res) => {
         }
 
     } catch (error) {
-        console.error('Check email error:', error);
+        logger.error('Check email error:', error);
         res.status(500).json({ message: 'Server error during email verification.' });
     }
 };
@@ -471,7 +472,7 @@ exports.resetPasswordDirect = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Reset password direct error:', error);
+        logger.error('Reset password direct error:', error);
         res.status(500).json({ message: 'Server error during password reset.' });
     }
 };
@@ -519,12 +520,12 @@ exports.sendOTP = async (req, res) => {
             const emailSent = await emailService.sendOTPEmail(email, user.name, otpCode);
 
             if (emailSent) {
-                console.log(`✅ OTP sent successfully to ${email}`);
+                logger.info(`✅ OTP sent successfully to ${email}`);
             } else {
-                console.log(`❌ Failed to send OTP to ${email}`);
+                logger.info(`❌ Failed to send OTP to ${email}`);
             }
         } catch (emailError) {
-            console.error('OTP email service error:', emailError);
+            logger.error('OTP email service error:', emailError);
         }
 
         res.status(200).json({ 
@@ -534,7 +535,7 @@ exports.sendOTP = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Send OTP error:', error);
+        logger.error('Send OTP error:', error);
         res.status(500).json({ message: 'Server error during OTP generation.' });
     }
 };
@@ -577,7 +578,7 @@ exports.verifyOTP = async (req, res) => {
             [email, otp]
         );
 
-        console.log(`✅ OTP verified successfully for ${email}`);
+        logger.info(`✅ OTP verified successfully for ${email}`);
 
         res.status(200).json({ 
             success: true,
@@ -587,7 +588,7 @@ exports.verifyOTP = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Verify OTP error:', error);
+        logger.error('Verify OTP error:', error);
         res.status(500).json({ message: 'Server error during OTP verification.' });
     }
 };
@@ -616,7 +617,7 @@ exports.logout = async (req, res) => {
 
         res.status(200).json({ message: 'Logged out successfully.' });
     } catch (error) {
-        console.error('Logout error:', error);
+        logger.error('Logout error:', error);
         res.status(500).json({ message: 'Server error during logout.' });
     }
 };

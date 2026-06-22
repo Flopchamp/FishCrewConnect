@@ -1,4 +1,5 @@
-const db = require('../config/db');
+﻿const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Create a new review
 // @route   POST /api/reviews
@@ -123,7 +124,7 @@ exports.createReview = async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ message: 'You have already submitted a review for this user regarding this job.' });
         }
-        console.error('Error creating review:', error);
+        logger.error('Error creating review:', error);
         res.status(500).json({ message: 'Server error while creating review.' });
     }
 };
@@ -143,7 +144,7 @@ exports.getReviewsForUser = async (req, res) => {
         );
         res.status(200).json(reviews);
     } catch (error) {
-        console.error('Error fetching reviews for user:', error);
+        logger.error('Error fetching reviews for user:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -164,7 +165,7 @@ exports.getReviewsForJob = async (req, res) => {
         );
         res.status(200).json(reviews);
     } catch (error) {
-        console.error('Error fetching reviews for job:', error);
+        logger.error('Error fetching reviews for job:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
