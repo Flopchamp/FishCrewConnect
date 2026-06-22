@@ -1989,14 +1989,32 @@ exports.overridePaymentStatus = async (req, res) => {
         const { paymentId } = req.params;
         const { status, reason } = req.body;
 
-        const validStatuses = ['pending', 'completed', 'failed', 'disputed', 'refunded', 'reversed'];
-        
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({ message: 'Invalid payment status' });
-        }
-
         if (!reason) {
             return res.status(400).json({ message: 'Reason for status override is required' });
+        }
+
+        // Fetch current status before allowing any transition
+        const [payments] = await db.query('SELECT status FROM job_payments WHERE id = ?', [paymentId]);
+        if (payments.length === 0) {
+            return res.status(404).json({ message: 'Payment not found' });
+        }
+        const currentStatus = payments[0].status;
+
+        // Valid transitions — terminal states (refunded, reversed) cannot move further
+        const ALLOWED_TRANSITIONS = {
+            pending:   ['completed', 'failed'],
+            completed: ['disputed', 'refunded', 'reversed'],
+            failed:    ['pending'],
+            disputed:  ['refunded', 'reversed', 'completed'],
+            refunded:  [],
+            reversed:  [],
+        };
+
+        const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
+        if (!allowed.includes(status)) {
+            return res.status(400).json({
+                message: `Cannot transition payment from "${currentStatus}" to "${status}". Allowed: ${allowed.join(', ') || 'none (terminal state)'}`,
+            });
         }
 
         // Update payment status
