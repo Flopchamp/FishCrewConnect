@@ -289,7 +289,8 @@ exports.deleteJob = async (req, res) => {
 
         // Optionally, you can also delete related applications, notifications, etc.
         // await db.query('DELETE FROM job_applications WHERE job_id = ?', [jobId]);
-        // await db.query('DELETE FROM notifications WHERE job_id = ?', [jobId]);        res.json({ message: 'Job deleted successfully.' });
+        // await db.query('DELETE FROM notifications WHERE job_id = ?', [jobId]);
+        res.json({ message: 'Job deleted successfully.' });
     } catch (error) {
         logger.error('Error deleting job:', error);
         res.status(500).json({ message: 'Server error while deleting job.' });
