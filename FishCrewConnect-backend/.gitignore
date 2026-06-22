@@ -40,6 +40,9 @@ logs/
 # Test coverage output
 coverage/
 
+# Winston log files (directory is tracked via logs/.gitkeep)
+logs/*.log
+
 # User-uploaded files
 uploads/cvs/
 uploads/profile-images/
