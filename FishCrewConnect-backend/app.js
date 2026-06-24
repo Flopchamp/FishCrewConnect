@@ -6,6 +6,8 @@ const path = require('path');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8081'];
