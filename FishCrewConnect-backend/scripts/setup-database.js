@@ -9,14 +9,19 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const mysql = require('mysql2/promise');
 
+const DB_NAME = process.env.MYSQL_DATABASE || 'fishcrewconnect';
+// Set SKIP_DB_CREATE=true when the database already exists (e.g. PlanetScale)
+const skipDbCreate = process.env.SKIP_DB_CREATE === 'true';
+
 const config = {
     host:     process.env.MYSQL_HOST     || 'localhost',
     user:     process.env.MYSQL_USER     || 'root',
     password: process.env.MYSQL_PASSWORD || '',
     port:     parseInt(process.env.MYSQL_PORT || '3306'),
+    ssl:      process.env.MYSQL_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
     multipleStatements: true,
+    ...(skipDbCreate ? { database: DB_NAME } : {}),
 };
-const DB_NAME = process.env.MYSQL_DATABASE || 'fishcrewconnect';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -452,12 +457,15 @@ async function main() {
 
     conn = await mysql.createConnection(config);
 
-    // Create the database if it doesn't already exist
-    await conn.query(
-        `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
-    await conn.query(`USE \`${DB_NAME}\``);
-    console.log(`\nDatabase: ${DB_NAME}\n`);
+    if (skipDbCreate) {
+        console.log(`\nDatabase: ${DB_NAME} (external — skipping CREATE DATABASE)\n`);
+    } else {
+        await conn.query(
+            `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+        );
+        await conn.query(`USE \`${DB_NAME}\``);
+        console.log(`\nDatabase: ${DB_NAME}\n`);
+    }
 
     console.log('Creating tables...');
     await createTables();
