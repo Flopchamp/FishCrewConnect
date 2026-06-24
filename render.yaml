@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fishcrewconnect-backend
+    runtime: node
+    rootDir: FishCrewConnect-backend
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    healthCheckPath: /
+    autoDeploy: true
