@@ -404,7 +404,7 @@ const JobDetailsScreen = () => {
       </ScrollView>
         {/* Action Button */}
       {canApply && (
-        <View style={styles.bottomBar} padding={40}>
+        <View style={[styles.bottomBar, { padding: 40 }]}>
           <CustomButton
             title="Apply for this job"
             onPress={handleApply}
