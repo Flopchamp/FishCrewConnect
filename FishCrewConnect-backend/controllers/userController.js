@@ -259,7 +259,7 @@ exports.updateUserProfile = async (req, res) => {
         if (Object.keys(validProfileFields).length > 0) {
             // Check if a profile record exists
             const [profileCheck] = await db.query(
-                'SELECT profile_id FROM user_profiles WHERE user_id = ?',
+                'SELECT id FROM user_profiles WHERE user_id = ?',
                 [userId]
             );
             
