@@ -294,27 +294,20 @@ const JobsPage = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-gray-900">{stats.total || 0}</div>
-          <div className="text-sm text-gray-500">Total Jobs</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-green-600">{stats.open || 0}</div>
-          <div className="text-sm text-gray-500">Open</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-blue-600">{stats.in_progress || 0}</div>
-          <div className="text-sm text-gray-500">In Progress</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-yellow-600">{stats.filled || 0}</div>
-          <div className="text-sm text-gray-500">Filled</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-purple-600">{stats.completed || 0}</div>
-          <div className="text-sm text-gray-500">Completed</div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {[
+          { label: 'Total Jobs', value: stats.total || 0, color: '#1e293b', bg: '#f8fafc' },
+          { label: 'Open', value: stats.open || 0, color: '#16a34a', bg: '#f0fdf4' },
+          { label: 'In Progress', value: stats.in_progress || 0, color: '#2563eb', bg: '#eff6ff' },
+          { label: 'Filled', value: stats.filled || 0, color: '#ca8a04', bg: '#fefce8' },
+          { label: 'Completed', value: stats.completed || 0, color: '#9333ea', bg: '#faf5ff' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-5"
+            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div className="text-2xl font-bold mb-1" style={{ color }}>{value}</div>
+            <div className="text-sm text-gray-500">{label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
