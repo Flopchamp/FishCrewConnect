@@ -178,10 +178,7 @@ const Layout = () => {
             <Menu className="h-5 w-5" />
           </button>
 
-          {/* Page title */}
-          <div className="flex-1">
-            <h1 className="text-base font-semibold text-gray-900">{getPageTitle()}</h1>
-          </div>
+          <div className="flex-1" />
 
           {/* User info in sidebar footer — nothing needed here on desktop */}
         </div>

@@ -151,23 +151,19 @@ const UsersPage = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-gray-900">{counts.all || 0}</div>
-          <div className="text-sm text-gray-500">Total Users</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-green-600">{counts.verified || 0}</div>
-          <div className="text-sm text-gray-500">Verified</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-yellow-600">{counts.pending || 0}</div>
-          <div className="text-sm text-gray-500">Pending</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="text-2xl font-semibold text-blue-600">{counts.boat_owner || 0}</div>
-          <div className="text-sm text-gray-500">Boat Owners</div>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: 'Total Users', value: counts.all || 0, color: '#2563eb', bg: '#eff6ff' },
+          { label: 'Verified', value: counts.verified || 0, color: '#16a34a', bg: '#f0fdf4' },
+          { label: 'Pending', value: counts.pending || 0, color: '#ca8a04', bg: '#fefce8' },
+          { label: 'Boat Owners', value: counts.boat_owner || 0, color: '#0077B6', bg: '#e0f5fb' },
+        ].map(({ label, value, color, bg }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-5"
+            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div className="text-2xl font-bold mb-1" style={{ color }}>{value}</div>
+            <div className="text-sm text-gray-500">{label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
