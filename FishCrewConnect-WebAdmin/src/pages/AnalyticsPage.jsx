@@ -93,32 +93,34 @@ const AnalyticsPage = () => {
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
-  const StatCard = ({ title, value, change, changeType, icon: Icon, color, description }) => (
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
-          {change !== undefined && (
-            <div className={`flex items-center mt-2 text-sm ${
-              changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {changeType === 'positive' ? (
-                <TrendingUp className="h-4 w-4 mr-1" />
-              ) : (
-                <TrendingDown className="h-4 w-4 mr-1" />
-              )}
-              {formatPercentage(change)} from last period
-            </div>
-          )}
-          {description && (
-            <p className="text-xs text-gray-400 mt-1">{description}</p>
-          )}
+  const formatLabel = (name) => {
+    const labels = {
+      boat_owner: 'Boat Owner', fisherman: 'Fisherman', admin: 'Admin',
+      open: 'Open', in_progress: 'In Progress', closed: 'Closed',
+      completed: 'Completed', filled: 'Filled', cancelled: 'Cancelled',
+    };
+    return labels[name] || name;
+  };
+
+  const StatCard = ({ title, value, change, changeType, icon: Icon, bg, iconColor, description }) => (
+    <div className="bg-white rounded-xl border border-gray-100 p-5"
+      style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="p-2.5 rounded-xl" style={{ background: bg }}>
+          <Icon className="h-5 w-5" style={{ color: iconColor }} />
         </div>
-        <div className={`p-3 rounded-full ${color}`}>
-          <Icon className="h-6 w-6 text-white" />
-        </div>
+        {change !== undefined && change !== null && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+            style={changeType === 'positive'
+              ? { background: '#dcfce7', color: '#16a34a' }
+              : { background: '#fee2e2', color: '#dc2626' }}>
+            {changeType === 'positive' ? '+' : ''}{change?.toFixed(1)}%
+          </span>
+        )}
       </div>
+      <div className="text-2xl font-bold text-gray-900 mb-0.5">{value}</div>
+      <div className="text-sm text-gray-500">{title}</div>
+      {description && <div className="text-xs text-gray-400 mt-0.5">{description}</div>}
     </div>
   );
 
@@ -160,43 +162,27 @@ const AnalyticsPage = () => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Total Revenue"
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <StatCard title="Total Revenue"
           value={formatCurrency(dashboardStats.payments?.total_payment_volume || 0)}
           change={paymentAnalytics.growth?.revenue}
           changeType={paymentAnalytics.growth?.revenue >= 0 ? 'positive' : 'negative'}
-          icon={DollarSign}
-          color="bg-green-500"
-          description="All completed payments"
-        />
-        <StatCard
-          title="Active Users"
+          icon={DollarSign} bg="#f0fdf4" iconColor="#16a34a" description="All completed payments" />
+        <StatCard title="Active Users"
           value={dashboardStats.totals?.users || 0}
           change={analytics.users?.growth}
           changeType={analytics.users?.growth >= 0 ? 'positive' : 'negative'}
-          icon={Users}
-          color="bg-blue-500"
-          description="Registered platform users"
-        />
-        <StatCard
-          title="Job Postings"
+          icon={Users} bg="#eff6ff" iconColor="#2563eb" description="Registered platform users" />
+        <StatCard title="Job Postings"
           value={dashboardStats.totals?.jobs || 0}
           change={analytics.jobs?.growth}
           changeType={analytics.jobs?.growth >= 0 ? 'positive' : 'negative'}
-          icon={Briefcase}
-          color="bg-purple-500"
-          description="Total jobs posted"
-        />
-        <StatCard
-          title="Platform Commission"
+          icon={Briefcase} bg="#faf5ff" iconColor="#9333ea" description="Total jobs posted" />
+        <StatCard title="Platform Commission"
           value={formatCurrency(dashboardStats.payments?.total_platform_commission || 0)}
           change={commissionAnalytics.growth?.commission}
           changeType={commissionAnalytics.growth?.commission >= 0 ? 'positive' : 'negative'}
-          icon={TrendingUp}
-          color="bg-yellow-500"
-          description="Total commission earned"
-        />
+          icon={TrendingUp} bg="#fefce8" iconColor="#ca8a04" description="Total commission earned" />
       </div>
 
       {/* Payment Analytics Row */}
@@ -249,52 +235,50 @@ const AnalyticsPage = () => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">User Type Distribution</h3>
+        <div className="bg-white p-6 rounded-xl border border-gray-100" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 className="text-base font-semibold text-gray-900 mb-4">User Type Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
                 data={dashboardStats.distributions?.userTypes?.map(item => ({
-                  name: item.user_type,
+                  name: formatLabel(item.user_type),
                   value: item.count
                 })) || []}
                 cx="50%"
                 cy="50%"
-                outerRadius={60}
-                fill="#8884d8"
+                outerRadius={65}
                 dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
                 {(dashboardStats.distributions?.userTypes || []).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value, name) => [value, name]} />
+              <Legend formatter={(value) => value} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Job Status Distribution</h3>
+        <div className="bg-white p-6 rounded-xl border border-gray-100" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <h3 className="text-base font-semibold text-gray-900 mb-4">Job Status Distribution</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
                 data={dashboardStats.distributions?.jobStatuses?.map(item => ({
-                  name: item.status,
+                  name: formatLabel(item.status),
                   value: item.count
                 })) || []}
                 cx="50%"
                 cy="50%"
-                outerRadius={60}
-                fill="#8884d8"
+                outerRadius={65}
                 dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
                 {(dashboardStats.distributions?.jobStatuses || []).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value, name) => [value, name]} />
+              <Legend formatter={(value) => value} />
             </PieChart>
           </ResponsiveContainer>
         </div>
