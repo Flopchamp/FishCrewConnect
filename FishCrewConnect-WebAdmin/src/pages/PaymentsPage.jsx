@@ -154,47 +154,24 @@ const PaymentsPage = () => {
       </div>
 
       {/* Payment Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="flex-1">
-              <div className="text-2xl font-semibold text-gray-900">
-                {formatCurrency(dashboardData.total_revenue || 0)}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: 'Total Revenue', value: formatCurrency(dashboardData.total_revenue || 0), icon: DollarSign, color: '#16a34a', bg: '#f0fdf4' },
+          { label: 'Commission Earned', value: formatCurrency(dashboardData.commission_earned || 0), icon: TrendingUp, color: '#0077B6', bg: '#e0f5fb' },
+          { label: 'Completed', value: stats.completed || 0, icon: CheckCircle, color: '#2563eb', bg: '#eff6ff' },
+          { label: 'Pending', value: stats.pending || 0, icon: Clock, color: '#ca8a04', bg: '#fefce8' },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-5"
+            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="p-2 rounded-lg" style={{ background: bg }}>
+                <Icon className="h-5 w-5" style={{ color }} />
               </div>
-              <div className="text-sm text-gray-500">Total Revenue</div>
             </div>
-            <DollarSign className="h-8 w-8 text-green-600" />
+            <div className="text-2xl font-bold mb-1" style={{ color }}>{value}</div>
+            <div className="text-sm text-gray-500">{label}</div>
           </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="flex-1">
-              <div className="text-2xl font-semibold text-green-600">
-                {formatCurrency(dashboardData.commission_earned || 0)}
-              </div>
-              <div className="text-sm text-gray-500">Commission Earned</div>
-            </div>
-            <TrendingUp className="h-8 w-8 text-green-600" />
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="flex-1">
-              <div className="text-2xl font-semibold text-blue-600">{stats.completed || 0}</div>
-              <div className="text-sm text-gray-500">Completed Payments</div>
-            </div>
-            <CheckCircle className="h-8 w-8 text-blue-600" />
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="flex-1">
-              <div className="text-2xl font-semibold text-yellow-600">{stats.pending || 0}</div>
-              <div className="text-sm text-gray-500">Pending Payments</div>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-600" />
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Filters */}
