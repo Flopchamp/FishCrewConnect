@@ -3,16 +3,13 @@ import { adminAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import {
   Search,
-  Filter,
   Download,
   Eye,
   CheckCircle,
   XCircle,
   Clock,
-  CreditCard,
   DollarSign,
   TrendingUp,
-  AlertCircle,
 } from 'lucide-react';
 
 const PaymentsPage = () => {
@@ -20,7 +17,6 @@ const PaymentsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
   const [dateRange, setDateRange] = useState('all');
   const [pagination, setPagination] = useState({
     current_page: 1,
@@ -33,7 +29,7 @@ const PaymentsPage = () => {
   useEffect(() => {
     loadPayments();
     loadPaymentDashboard();
-  }, [searchTerm, statusFilter, typeFilter, dateRange, pagination.current_page]);
+  }, [searchTerm, statusFilter, dateRange, pagination.current_page]);
 
   const loadPayments = async () => {
     try {
@@ -45,13 +41,11 @@ const PaymentsPage = () => {
 
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
-      if (typeFilter !== 'all') params.type = typeFilter;
       if (dateRange !== 'all') params.date_range = dateRange;
 
-      const data = await adminAPI.getAllPayments(params);
+      const data = await adminAPI.getAllPlatformPayments(params);
       setPayments(data.payments || []);
       setPagination(data.pagination || {});
-      setStats(data.stats || {});
     } catch (error) {
       toast.error('Failed to load payments');
       console.error('Error loading payments:', error);
@@ -62,10 +56,15 @@ const PaymentsPage = () => {
 
   const loadPaymentDashboard = async () => {
     try {
-      const data = await adminAPI.getPaymentDashboard();
+      const data = await adminAPI.getPaymentStatistics();
       setDashboardData(data);
+      setStats({
+        completed: data.completed_payments || 0,
+        pending: data.pending_payments || 0,
+        failed: data.failed_payments || 0,
+      });
     } catch (error) {
-      console.error('Error loading payment dashboard:', error);
+      console.error('Error loading payment statistics:', error);
     }
   };
 
@@ -77,17 +76,6 @@ const PaymentsPage = () => {
     } catch (error) {
       toast.error('Failed to refund payment');
       console.error('Error refunding payment:', error);
-    }
-  };
-
-  const handleVerifyPayment = async (paymentId) => {
-    try {
-      await adminAPI.verifyPayment(paymentId);
-      toast.success('Payment verified successfully');
-      loadPayments();
-    } catch (error) {
-      toast.error('Failed to verify payment');
-      console.error('Error verifying payment:', error);
     }
   };
 
@@ -157,7 +145,7 @@ const PaymentsPage = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total Revenue', value: formatCurrency(dashboardData.total_revenue || 0), icon: DollarSign, color: '#16a34a', bg: '#f0fdf4' },
-          { label: 'Commission Earned', value: formatCurrency(dashboardData.commission_earned || 0), icon: TrendingUp, color: '#0077B6', bg: '#e0f5fb' },
+          { label: 'Commission Earned', value: formatCurrency(dashboardData.total_commission || 0), icon: TrendingUp, color: '#0077B6', bg: '#e0f5fb' },
           { label: 'Completed', value: stats.completed || 0, icon: CheckCircle, color: '#2563eb', bg: '#eff6ff' },
           { label: 'Pending', value: stats.pending || 0, icon: Clock, color: '#ca8a04', bg: '#fefce8' },
         ].map(({ label, value, icon: Icon, color, bg }) => (
@@ -200,16 +188,6 @@ const PaymentsPage = () => {
             <option value="failed">Failed</option>
             <option value="refunded">Refunded</option>
             <option value="processing">Processing</option>
-          </select>
-          <select
-            className="input"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            <option value="all">All Types</option>
-            <option value="job_payment">Job Payment</option>
-            <option value="commission">Commission</option>
-            <option value="refund">Refund</option>
           </select>
           <select
             className="input"
@@ -266,42 +244,40 @@ const PaymentsPage = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {payments.map((payment) => (
-                  <tr key={payment.payment_id} className="hover:bg-gray-50">
+                  <tr key={payment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {payment.transaction_id || payment.checkout_request_id}
+                          {payment.mpesa_receipt_number || payment.mpesa_checkout_request_id || `#${payment.id}`}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {payment.phone_number}
+                          {payment.payer_phone_number || '—'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {payment.user_name}
+                          {payment.boat_owner_name || '—'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {payment.user_email}
+                          {payment.fisherman_name || '—'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        {formatCurrency(payment.amount)}
+                        {formatCurrency(payment.total_amount)}
                       </div>
-                      {payment.commission_amount && (
+                      {payment.platform_commission > 0 && (
                         <div className="text-sm text-gray-500">
-                          Commission: {formatCurrency(payment.commission_amount)}
+                          Commission: {formatCurrency(payment.platform_commission)}
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentTypeColor(payment.payment_type)}`}>
-                        {payment.payment_type === 'job_payment' ? 'Job Payment' :
-                         payment.payment_type === 'commission' ? 'Commission' :
-                         payment.payment_type.charAt(0).toUpperCase() + payment.payment_type.slice(1)}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {payment.job_title || 'Job Payment'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -312,18 +288,9 @@ const PaymentsPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        {payment.status === 'pending' && (
+                        {payment.status === 'completed' && (
                           <button
-                            onClick={() => handleVerifyPayment(payment.payment_id)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Verify Payment"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                        {payment.status === 'completed' && payment.payment_type !== 'refund' && (
-                          <button
-                            onClick={() => handleRefundPayment(payment.payment_id, payment.amount, 'Admin refund')}
+                            onClick={() => handleRefundPayment(payment.id, payment.total_amount, 'Admin refund')}
                             className="text-red-600 hover:text-red-900"
                             title="Refund Payment"
                           >
@@ -347,8 +314,8 @@ const PaymentsPage = () => {
           <div className="flex items-center justify-between px-6 py-3 border-t">
             <div className="text-sm text-gray-500">
               Showing {((pagination.current_page - 1) * 20) + 1} to{' '}
-              {Math.min(pagination.current_page * 20, pagination.total)} of{' '}
-              {pagination.total} payments
+              {Math.min(pagination.current_page * 20, pagination.total_payments)} of{' '}
+              {pagination.total_payments} payments
             </div>
             <div className="flex gap-2">
               <button
