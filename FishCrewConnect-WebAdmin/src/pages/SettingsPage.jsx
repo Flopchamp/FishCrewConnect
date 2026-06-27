@@ -3,7 +3,6 @@ import { adminAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import {
   Settings as SettingsIcon,
-  Save,
   RefreshCw,
   AlertCircle,
   Shield,
@@ -20,6 +19,7 @@ import {
   Users,
   FileText,
   CreditCard,
+  CheckCircle,
 } from 'lucide-react';
 
 const tabs = [
@@ -179,10 +179,10 @@ const SettingsPage = () => {
             Refresh
           </button>
           <button onClick={handleSaveSettings} disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
-            style={{ background: saving ? '#94a3b8' : 'linear-gradient(135deg, #0077B6, #44DBE9)' }}>
-            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save Changes
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all"
+            style={{ background: saving ? '#94a3b8' : 'linear-gradient(135deg, #003566, #0077B6, #44DBE9)', boxShadow: saving ? 'none' : '0 2px 8px rgba(0,119,182,0.35)' }}>
+            {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
