@@ -2,8 +2,8 @@
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const app = require('./app');
-const db = require('./config/db');
 const logger = require('./utils/logger');
+const { createSendMessageHandler } = require('./socketHandlers');
 
 // Fail fast if critical env vars are absent
 const REQUIRED_ENV = ['JWT_SECRET', 'MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE'];
@@ -67,46 +67,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {});
 
-    socket.on('send_message', async (messageData) => {
-        try {
-            const { recipientId, text } = messageData;
-            if (!recipientId || !text || typeof text !== 'string') return;
-            if (text.length > 5000) return;
-
-            const senderId = parseInt(socket.userId, 10);
-            const parsedRecipientId = parseInt(recipientId, 10);
-            if (isNaN(parsedRecipientId) || senderId === parsedRecipientId) return;
-
-            // Verify sender and recipient share a job-application relationship,
-            // or at least one is an admin — mirrors the REST contact-filter logic.
-            const [rel] = await db.query(
-                `SELECT 1
-                 FROM users u
-                 WHERE u.user_id IN (?, ?)
-                   AND u.user_type = 'admin'
-                 UNION
-                 SELECT 1
-                 FROM job_applications ja
-                 JOIN jobs j ON ja.job_id = j.job_id
-                 WHERE (ja.user_id = ? AND j.user_id = ?)
-                    OR (ja.user_id = ? AND j.user_id = ?)
-                 LIMIT 1`,
-                [senderId, parsedRecipientId, senderId, parsedRecipientId, parsedRecipientId, senderId]
-            );
-            if (rel.length === 0) return;
-
-            io.to(parsedRecipientId.toString()).emit('new_message', {
-                id: Date.now(),
-                senderId: socket.userId,
-                recipientId: parsedRecipientId,
-                text,
-                timestamp: new Date().toISOString(),
-                read: false,
-            });
-        } catch (error) {
-            logger.error('Error handling send_message event:', error);
-        }
-    });
+    socket.on('send_message', createSendMessageHandler(io, socket));
 });
 
 app.get('/socket-health', (req, res) => {
