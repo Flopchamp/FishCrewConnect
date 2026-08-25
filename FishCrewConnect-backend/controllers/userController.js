@@ -1,5 +1,6 @@
 ﻿const db = require('../config/db');
 const logger = require('../utils/logger');
+const { getConnectedUserIds, isUnrestrictedMessenger } = require('../services/messagingConnections');
 
 // Helper function to convert relative image URLs to full URLs
 const getFullImageUrl = (relativePath, req) => {
@@ -391,48 +392,35 @@ exports.getUserRating = async (req, res) => {
 exports.getAllContacts = async (req, res) => {
     try {
         const currentUserId = req.user.id;
-        const currentUserType = req.user.user_type;
-        
-        let contacts = [];
-        
-        if (currentUserType === 'fisherman') {
-            // For fishermen: show only boat owners they have applied to
+
+        // Admins are not part of the job-application graph, so they see everyone.
+        // Everyone else sees exactly the users they are allowed to message —
+        // same rule, same function as POST /api/messages.
+        let contacts;
+        if (isUnrestrictedMessenger(req.user.user_type)) {
             const [users] = await db.query(
-                `SELECT DISTINCT u.user_id as id, u.name, u.user_type, 
+                `SELECT u.user_id as id, u.name, u.user_type,
                         p.profile_image, p.location, u.organization_name
-                 FROM users u
-                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
-                 INNER JOIN jobs j ON u.user_id = j.user_id
-                 INNER JOIN job_applications ja ON j.job_id = ja.job_id
-                 WHERE ja.user_id = ? AND u.user_type = 'boat_owner'
-                 ORDER BY u.name ASC`,
-                [currentUserId]
-            );
-            contacts = users;
-        } else if (currentUserType === 'boat_owner') {
-            // For boat owners: show only fishermen who have applied to their jobs
-            const [users] = await db.query(
-                `SELECT DISTINCT u.user_id as id, u.name, u.user_type, 
-                        p.profile_image, p.location
-                 FROM users u
-                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
-                 INNER JOIN job_applications ja ON u.user_id = ja.user_id
-                 INNER JOIN jobs j ON ja.job_id = j.job_id
-                 WHERE j.user_id = ? AND u.user_type = 'fisherman'
-                 ORDER BY u.name ASC`,
-                [currentUserId]
-            );
-            contacts = users;
-        } else {
-            // For admin or other roles: show all users (fallback to original behavior)
-            const [users] = await db.query(
-                `SELECT u.user_id as id, u.name, u.user_type, 
-                        p.profile_image, p.location
                  FROM users u
                  LEFT JOIN user_profiles p ON u.user_id = p.user_id
                  WHERE u.user_id != ?
                  ORDER BY u.name ASC`,
                 [currentUserId]
+            );
+            contacts = users;
+        } else {
+            const connectedIds = await getConnectedUserIds(currentUserId);
+            if (connectedIds.length === 0) {
+                return res.json([]);
+            }
+            const [users] = await db.query(
+                `SELECT u.user_id as id, u.name, u.user_type,
+                        p.profile_image, p.location, u.organization_name
+                 FROM users u
+                 LEFT JOIN user_profiles p ON u.user_id = p.user_id
+                 WHERE u.user_id IN (?)
+                 ORDER BY u.name ASC`,
+                [connectedIds]
             );
             contacts = users;
         }

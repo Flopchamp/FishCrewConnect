@@ -1,5 +1,6 @@
 ﻿const db = require('../config/db');
 const logger = require('../utils/logger');
+const { canUsersMessage } = require('../services/messagingConnections');
 
 // @desc    Get all conversations for the current user
 // @route   GET /api/messages/conversations
@@ -128,6 +129,16 @@ exports.sendMessage = async (req, res) => {
             return res.status(404).json({ message: 'Recipient not found.' });
         }
         
+        // Only users connected by a job application may message each other.
+        // Same rule (and same function) that decides GET /api/users/contacts.
+        if (!(await canUsersMessage(senderId, parsedRecipientId))) {
+            logger.warn(`User ${senderId} attempted to message unconnected user ${parsedRecipientId}`);
+            return res.status(403).json({
+                message: 'You can only message users you share a job application with.',
+                error: 'NOT_CONNECTED'
+            });
+        }
+
         // Trim message text and check it's not empty after trimming
         const trimmedText = text.trim();
         if (!trimmedText) {
