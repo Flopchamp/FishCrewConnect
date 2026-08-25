@@ -2,3 +2,4 @@
 process.env.JWT_SECRET = 'test-secret-do-not-use-in-production';
 process.env.MYSQL_DATABASE = 'fishcrewconnect_test';
 process.env.NODE_ENV = 'test';
+process.env.MPESA_CALLBACK_SECRET = 'test-callback-secret';

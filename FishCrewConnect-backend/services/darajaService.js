@@ -1,6 +1,8 @@
 ﻿const axios = require('axios');
 require('dotenv').config();
 const logger = require('../utils/logger');
+const { isDemoMode } = require('../config/demoMode');
+const { buildCallbackUrl } = require('../utils/callbackUrl');
 
 class DarajaService {
     constructor() {
@@ -75,12 +77,9 @@ class DarajaService {
     // Initiate STK Push (Lipa Na M-Pesa Online)
     async initiateSTKPush(phoneNumber, amount, accountReference, transactionDesc, callbackURL) {
         try {
-            // Check for explicit demo mode setting only
-            const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
-            
             let requestData;
             
-            if (isDemoMode) {
+            if (isDemoMode()) {
                 // Use provided test credentials for demonstration
                 logger.info('Using DEMO M-Pesa credentials for testing...');
                 requestData = {
@@ -124,7 +123,7 @@ class DarajaService {
                 Password: '[HIDDEN]'
             });
 
-            if (isDemoMode) {
+            if (isDemoMode()) {
                 // In demo mode, simulate a successful response
                 logger.info('DEMO MODE: Simulating successful STK Push response...');
                 return {
@@ -168,10 +167,7 @@ class DarajaService {
     // Send money to user (B2C)
     async sendMoney(phoneNumber, amount, remarks = 'Payment') {
         try {
-            // Check for explicit demo mode setting only
-            const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
-            
-            if (isDemoMode) {
+            if (isDemoMode()) {
                 logger.info('DEMO MODE: Simulating B2C payment...');
                 return {
                     ConversationID: `AG_${Date.now()}_DEMO`,
@@ -192,8 +188,8 @@ class DarajaService {
                 PartyA: this.businessShortCode,
                 PartyB: formattedPhone,
                 Remarks: remarks,
-                QueueTimeOutURL: `${process.env.BACKEND_URL}/api/payments/daraja/timeout`,
-                ResultURL: `${process.env.BACKEND_URL}/api/payments/daraja/result`,
+                QueueTimeOutURL: buildCallbackUrl('timeout'),
+                ResultURL: buildCallbackUrl('result'),
                 Occasion: 'Job Payment'
             };
 
@@ -218,10 +214,7 @@ class DarajaService {
     // Query transaction status
     async queryTransactionStatus(checkoutRequestID) {
         try {
-            // Check for explicit demo mode setting only
-            const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
-            
-            if (isDemoMode) {
+            if (isDemoMode()) {
                 logger.info('DEMO MODE: Simulating transaction status query...');
                 return {
                     ResponseCode: "0",
