@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware');
+const verifyMpesaCallback = require('../middleware/mpesaCallbackAuth');
 
 // @route   POST /api/payments/initiate-job-payment
 // @desc    Initiate payment from boat owner to fisherman
@@ -18,21 +19,24 @@ router.get('/status/:paymentId', authMiddleware, paymentController.getPaymentSta
 // @access  Private
 router.get('/history', authMiddleware, paymentController.getPaymentHistory);
 
-// M-Pesa callback routes (public - no auth middleware)
-// @route   POST /api/payments/daraja/callback
+// M-Pesa callback routes. Not authenticated by a token — Safaricom has none —
+// but gated on a secret path segment, since these endpoints move money.
+// The URL is built by buildCallbackUrl() in paymentController.
+
+// @route   POST /api/payments/daraja/callback/:secret
 // @desc    Handle M-Pesa STK Push callback
-// @access  Public (M-Pesa callback)
-router.post('/daraja/callback', paymentController.handleMpesaCallback);
+// @access  Safaricom only (secret path segment)
+router.post('/daraja/callback/:secret', verifyMpesaCallback, paymentController.handleMpesaCallback);
 
-// @route   POST /api/payments/daraja/result
+// @route   POST /api/payments/daraja/result/:secret
 // @desc    Handle M-Pesa B2C result callback
-// @access  Public (M-Pesa callback)
-router.post('/daraja/result', paymentController.handleB2CResult);
+// @access  Safaricom only (secret path segment)
+router.post('/daraja/result/:secret', verifyMpesaCallback, paymentController.handleB2CResult);
 
-// @route   POST /api/payments/daraja/timeout
+// @route   POST /api/payments/daraja/timeout/:secret
 // @desc    Handle M-Pesa timeout callback
-// @access  Public (M-Pesa callback)
-router.post('/daraja/timeout', paymentController.handleTimeout);
+// @access  Safaricom only (secret path segment)
+router.post('/daraja/timeout/:secret', verifyMpesaCallback, paymentController.handleTimeout);
 
 if (process.env.NODE_ENV !== 'production') {
     router.get('/test', (req, res) => {
