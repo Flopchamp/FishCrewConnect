@@ -1,18 +1,13 @@
 const db = require('../config/db');
 
-async function updatePaymentStatistics() {
+/**
+ * Recompute the payment_statistics row. Safe to call from a request handler:
+ * it never calls process.exit and never closes the shared connection pool.
+ * Returns { success, statistics } or { success: false, error } — the shape
+ * adminController.refreshPaymentStatistics already expects.
+ */
+async function refreshPaymentStatistics() {
     try {
-        console.log('🔄 Starting payment statistics update...');
-        
-        // Test database connection
-        try {
-            await db.execute('SELECT 1');
-            console.log('✅ Successfully connected to MySQL database.');
-        } catch (connectionError) {
-            console.error('❌ Database connection failed:', connectionError.message);
-            process.exit(1);
-        }
-
         // Calculate statistics from job_payments table
         const [stats] = await db.execute(`
             SELECT 
@@ -30,12 +25,10 @@ async function updatePaymentStatistics() {
         `);
 
         if (!stats || stats.length === 0) {
-            console.log('⚠️ No payment data found in job_payments table');
-            return;
+            return { success: true, statistics: null };
         }
-        
+
         const statisticsData = stats[0];
-        console.log('📈 Calculated statistics:', statisticsData);
 
         // Insert or update statistics using UPSERT (single row approach)
         await db.execute(`
@@ -77,34 +70,35 @@ async function updatePaymentStatistics() {
             statisticsData.last_payment_date
         ]);
         
-        console.log('✅ Payment statistics updated successfully');
-        
-        // Show the updated statistics
-        const [updatedStats] = await db.execute('SELECT * FROM payment_statistics WHERE id = 1');
-        if (updatedStats && updatedStats.length > 0) {
-            console.log('\n📊 Updated Payment Statistics:');
-            console.table(updatedStats[0]);
-            
-            const stats_summary = updatedStats[0];
-            console.log('\n💰 Summary:');
-            console.log(`Total Revenue: KSH ${parseFloat(stats_summary.total_payment_volume).toLocaleString()}`);
-            console.log(`Platform Commission: KSH ${parseFloat(stats_summary.total_platform_commission).toLocaleString()}`);
-            console.log(`Success Rate: ${stats_summary.total_payments > 0 ? ((stats_summary.completed_payments / stats_summary.total_payments) * 100).toFixed(2) : 0}%`);
-        }
-        
-        console.log('\n🎉 Payment statistics aggregation completed successfully!');
-        
+        return { success: true, statistics: statisticsData };
     } catch (error) {
-        console.error('💥 Script failed:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/** CLI entry point: reports to stdout and closes the pool on the way out. */
+async function updatePaymentStatistics() {
+    console.log('🔄 Starting payment statistics update...');
+    const result = await refreshPaymentStatistics();
+
+    if (!result.success) {
+        console.error('💥 Script failed:', result.error);
+        await db.end().catch(() => {});
         process.exit(1);
-    } finally {
-        // Close database connection
-        try {
-            await db.end();
-            console.log('🔌 Database connection closed.');
-        } catch (closeError) {
-            console.log('⚠️ Warning: Could not close database connection properly');
-        }
+    }
+
+    if (result.statistics === null) {
+        console.log('⚠️ No payment data found in job_payments table');
+    } else {
+        console.log('✅ Payment statistics updated successfully');
+        console.table(result.statistics);
+    }
+
+    try {
+        await db.end();
+        console.log('🔌 Database connection closed.');
+    } catch (closeError) {
+        console.log('⚠️ Warning: Could not close database connection properly');
     }
 }
 
@@ -113,4 +107,4 @@ if (require.main === module) {
     updatePaymentStatistics();
 }
 
-module.exports = updatePaymentStatistics;
+module.exports = { refreshPaymentStatistics, updatePaymentStatistics };

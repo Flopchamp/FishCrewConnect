@@ -19,7 +19,7 @@ jest.mock('../middleware/uploadMiddleware', () => ({
     handleUploadError: (req, res, next) => next(),
 }));
 jest.mock('../scripts/update-payment-statistics', () => ({
-    refreshPaymentStatistics: jest.fn(),
+    refreshPaymentStatistics: jest.fn().mockResolvedValue({ success: true, statistics: null }),
 }));
 jest.mock('../services/darajaService', () => ({
     initiateSTKPush: jest.fn(),
@@ -28,12 +28,46 @@ jest.mock('../services/darajaService', () => ({
 
 const app = require('../app');
 const db = require('../config/db');
+const darajaService = require('../services/darajaService');
 
 function makeBoatOwnerToken() {
     return jwt.sign({ user: { id: 1, user_type: 'boat_owner' } }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 beforeEach(() => jest.clearAllMocks());
+describe('POST /api/payments/daraja/callback',()=>{
+    const callback={
+        stkCallback:{
+            MerchantRequestID: "12345",
+            CheckoutRequestID: "67890",
+            ResultCode: 0,
+            ResultDesc: "The service request is processed successfully.",
+            CallbackMetadata: {
+                Item: [
+                    { Name: "Amount", Value: 1000 },
+                    { Name: "MpesaReceiptNumber", Value: "ABC123XYZ" },
+                    { Name: "TransactionDate", Value: 20240610123456 },
+                    { Name: "PhoneNumber", Value: 254700000000 }
+                ]
+            }
+        }
+    }
+     it('ignore duplicate payment Do not pay fisherman if payment already exists', async () => {
+        db.query.mockResolvedValueOnce([[{
+            id:42,job_id:7,fisherman_id:3,amount:5000,status:'Completed',created_at:'2024-06-10 12:00:00'
+        }],[]]);// existing payment
+
+        db.query.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+        const res = await request(app)
+            .post('/api/payments/daraja/callback')
+            .send(callback);
+
+        expect(res.status).toBe(200);
+        expect(darajaService.sendMoney).not.toHaveBeenCalled();
+
+    });
+})
 
 describe('POST /api/payments/initiate-job-payment', () => {
     const token = makeBoatOwnerToken;
@@ -46,6 +80,7 @@ describe('POST /api/payments/initiate-job-payment', () => {
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/missing required fields/i);
     });
+   
 
     it('returns 400 when amount is zero or negative', async () => {
         const res = await request(app)
