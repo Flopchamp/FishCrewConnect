@@ -34,7 +34,12 @@ function makeBoatOwnerToken() {
     return jwt.sign({ user: { id: 1, user_type: 'boat_owner' } }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+    jest.clearAllMocks();
+    // clearAllMocks() does not drain queued mockResolvedValueOnce values — reset
+    // so a test that returns early cannot leak them into the next one.
+    db.query.mockReset();
+});
 describe('POST /api/payments/daraja/callback',()=>{
     const callback={
         stkCallback:{
@@ -54,13 +59,14 @@ describe('POST /api/payments/daraja/callback',()=>{
     }
      it('ignore duplicate payment Do not pay fisherman if payment already exists', async () => {
         db.query.mockResolvedValueOnce([[{
-            id:42,job_id:7,fisherman_id:3,amount:5000,status:'Completed',created_at:'2024-06-10 12:00:00'
+            id:42,job_id:7,fisherman_id:3,amount:1000,total_amount:'1000.00',
+            status:'Completed',created_at:'2024-06-10 12:00:00'
         }],[]]);// existing payment
 
         db.query.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
 
         const res = await request(app)
-            .post('/api/payments/daraja/callback')
+            .post(`/api/payments/daraja/callback/${process.env.MPESA_CALLBACK_SECRET}`)
             .send(callback);
 
         expect(res.status).toBe(200);

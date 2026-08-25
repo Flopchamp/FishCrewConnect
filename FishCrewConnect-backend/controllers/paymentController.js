@@ -2,6 +2,9 @@
 const darajaService = require('../services/darajaService');
 const { refreshPaymentStatistics } = require('../scripts/update-payment-statistics');
 const logger = require('../utils/logger');
+const { isDemoMode } = require('../config/demoMode');
+const { buildCallbackUrl } = require('../utils/callbackUrl');
+const { payFisherman } = require('../services/fishermanPayout');
 
 // Platform commission percentage (configurable via admin settings)
 const PLATFORM_COMMISSION_RATE = 0.05; // 5% default
@@ -94,7 +97,7 @@ exports.initiateJobPayment = async (req, res) => {
         const paymentId = paymentResult.insertId;
 
         // Initiate STK Push
-        const callbackURL = `${process.env.BACKEND_URL}/api/payments/daraja/callback`;
+        const callbackURL = buildCallbackUrl('callback');
         const accountReference = `JOB${jobId}PAY${paymentId}`;
         const transactionDesc = `Payment for job: ${job.job_title}`;
 
@@ -108,10 +111,7 @@ exports.initiateJobPayment = async (req, res) => {
                 callbackURL
             );
 
-            // Check for explicit demo mode setting only
-            const isDemoMode = process.env.DARAJA_DEMO_MODE === 'true';
-            
-            if (isDemoMode) {
+            if (isDemoMode()) {
                 setTimeout(async () => {
                     try {
                         await db.query(
@@ -119,33 +119,14 @@ exports.initiateJobPayment = async (req, res) => {
                             [`DEMO${Date.now()}`, paymentId]
                         );
 
-                        // AUTO-SEND MONEY TO FISHERMAN (B2C Payment)
-                        if (job.fisherman_phone) {
-                            
-                            try {
-                                const b2cResult = await darajaService.sendMoney(
-                                    job.fisherman_phone,
-                                    fishermanAmount,
-                                    `Job payment for: ${job.job_title}`
-                                );
-                                
-                                // Update payment record with B2C details
-                                await db.query(
-                                    'UPDATE job_payments SET b2c_conversation_id = ?, b2c_originator_conversation_id = ?, b2c_status = "completed" WHERE id = ?',
-                                    [b2cResult.ConversationID || `DEMO_B2C_${Date.now()}`, b2cResult.OriginatorConversationID || `DEMO_ORIG_${Date.now()}`, paymentId]
-                                );
-                                
-                            } catch (b2cError) {
-                                logger.error('Error sending money to fisherman:', b2cError);
-                                // Don't fail the main payment, just log the error
-                                await db.query(
-                                    'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
-                                    [`B2C payment failed: ${b2cError.message}`, paymentId]
-                                );
-                            }
-                        } else {
-                            logger.info('Warning: Fisherman phone number not found, cannot send B2C payment');
-                        }
+                        await payFisherman({
+                            paymentId,
+                            phoneNumber: job.fisherman_phone,
+                            amount: fishermanAmount,
+                            fishermanId: job.fisherman_id,
+                            jobId,
+                            jobTitle: job.job_title,
+                        });
                         
                         // Create success notification for fisherman
                         await db.query(
@@ -227,8 +208,8 @@ exports.initiateJobPayment = async (req, res) => {
             fishermanAmount,
             platformCommission,
             commissionRate: (commissionRate * 100).toFixed(1) + '%',
-            isDemoMode: process.env.DARAJA_DEMO_MODE === 'true',
-            demoMessage: (process.env.DARAJA_DEMO_MODE === 'true') 
+            isDemoMode: isDemoMode(),
+            demoMessage: isDemoMode() 
                 ? 'This is a demo payment using test credentials. Payment will be automatically completed in 3 seconds.' 
                 : undefined
         });
@@ -270,6 +251,25 @@ exports.handleMpesaCallback = async (req, res) => {
             const callbackMetadata = stkCallback.CallbackMetadata?.Item || [];
             const mpesaReceiptNumber = callbackMetadata.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
             const phoneNumber = callbackMetadata.find(item => item.Name === 'PhoneNumber')?.Value;
+            const paidAmount = callbackMetadata.find(item => item.Name === 'Amount')?.Value;
+
+            // A success callback that does not carry the amount we billed is not
+            // evidence of payment. Flag it and pay nobody: the cost of a false
+            // reject is a support ticket, the cost of a false accept is a payout
+            // funded by us.
+            if (paidAmount === undefined || Number(paidAmount) !== Number(payment.total_amount)) {
+                logger.error('M-Pesa callback amount mismatch — refusing to process', {
+                    paymentId: payment.id,
+                    expected: Number(payment.total_amount),
+                    received: paidAmount,
+                    checkoutRequestId: CheckoutRequestID,
+                });
+                await db.query(
+                    "UPDATE job_payments SET status = 'disputed', failure_reason = ? WHERE id = ? AND status = 'pending'",
+                    [`Callback amount mismatch: expected ${payment.total_amount}, received ${paidAmount}`, payment.id]
+                );
+                return res.status(200).json({ message: 'Callback recorded for review' });
+            }
 
             // Update payment status
             const [result] = await db.query(
@@ -288,7 +288,10 @@ exports.handleMpesaCallback = async (req, res) => {
                 // Acknowledge it: Safaricom retries anything it does not get a
                 // success for, and repeating the work below would pay the
                 // fisherman a second time.
-                logger.warn('Duplicate callback ignored for payment:', payment.id);
+                logger.info('Duplicate M-Pesa callback ignored', {
+                    paymentId: payment.id,
+                    checkoutRequestId: CheckoutRequestID,
+                });
                 return res.status(200).json({ message: 'Callback already processed' });
             }
 
@@ -303,49 +306,23 @@ exports.handleMpesaCallback = async (req, res) => {
                 [payment.job_id]
             );
 
-            // Now initiate B2C payment to fisherman (minus platform commission)
-            try {
-                const [fisherman] = await db.query(
-                    'SELECT u.*, up.location FROM users u LEFT JOIN user_profiles up ON u.user_id = up.user_id WHERE u.user_id = ?',
-                    [payment.fisherman_id]
-                );
-
-                if (fisherman.length > 0 && fisherman[0].contact_number) {
-                    const b2cResult = await darajaService.sendMoney(
-                        fisherman[0].contact_number,
-                        payment.fisherman_amount,
-                        `Job payment for job ID ${payment.job_id}`
-                    );
-
-                    // Update payment with B2C details
-                    await db.query(
-                        'UPDATE job_payments SET b2c_conversation_id = ?, b2c_originator_conversation_id = ?, b2c_status = "pending" WHERE id = ?',
-                        [b2cResult.ConversationID, b2cResult.OriginatorConversationID, payment.id]
-                    );
-
-                    logger.info('B2C payment initiated for fisherman:', fisherman[0].name);
-                }
-            } catch (b2cError) {
-                logger.error('B2C payment failed:', b2cError);
-                await db.query(
-                    'UPDATE job_payments SET b2c_status = "failed", b2c_result_desc = ? WHERE id = ?',
-                    [`B2C failed: ${b2cError.message}`, payment.id]
-                );
-                // Notify admin that manual payout is needed
-                await db.query(
-                    'INSERT INTO notifications (user_id, type, message, link) VALUES (?, ?, ?, ?)',
-                    [
-                        payment.fisherman_id,
-                        'payment_pending',
-                        `Your payout for job ID ${payment.job_id} could not be sent automatically. Our team will process it manually within 24 hours.`,
-                        `/payment-history`
-                    ]
-                );
-            }
-
-            // Create notifications
+            // Now pay the fisherman (minus platform commission)
             const [jobDetails] = await db.query('SELECT job_title FROM jobs WHERE job_id = ?', [payment.job_id]);
             const jobTitle = jobDetails[0]?.job_title || 'job';
+
+            const [fisherman] = await db.query(
+                'SELECT contact_number FROM users WHERE user_id = ?',
+                [payment.fisherman_id]
+            );
+
+            await payFisherman({
+                paymentId: payment.id,
+                phoneNumber: fisherman[0]?.contact_number,
+                amount: payment.fisherman_amount,
+                fishermanId: payment.fisherman_id,
+                jobId: payment.job_id,
+                jobTitle,
+            });
 
             // Notify boat owner
             await db.query(

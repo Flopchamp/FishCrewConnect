@@ -6,7 +6,10 @@ const logger = require('./utils/logger');
 const { createSendMessageHandler } = require('./socketHandlers');
 
 // Fail fast if critical env vars are absent
-const REQUIRED_ENV = ['JWT_SECRET', 'MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE'];
+const REQUIRED_ENV = ['JWT_SECRET', 'MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE', 'MPESA_CALLBACK_SECRET'];
+
+// Refuse to boot a production server that would fabricate payment receipts.
+assertDemoModeAllowed();
 if (process.env.NODE_ENV === 'production') {
     REQUIRED_ENV.push('BACKEND_URL');
 }
