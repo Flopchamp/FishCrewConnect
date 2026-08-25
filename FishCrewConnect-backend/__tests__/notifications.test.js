@@ -19,7 +19,7 @@ jest.mock('../middleware/uploadMiddleware', () => ({
     handleUploadError: (req, res, next) => next(),
 }));
 jest.mock('../scripts/update-payment-statistics', () => ({
-    refreshPaymentStatistics: jest.fn(),
+    refreshPaymentStatistics: jest.fn().mockResolvedValue({ success: true, statistics: null }),
 }));
 
 const app = require('../app');

@@ -272,19 +272,28 @@ exports.handleMpesaCallback = async (req, res) => {
             const phoneNumber = callbackMetadata.find(item => item.Name === 'PhoneNumber')?.Value;
 
             // Update payment status
-            await db.query(
+            const [result] = await db.query(
                 `UPDATE job_payments SET 
                     status = 'completed', 
                     mpesa_receipt_number = ?, 
                     payer_phone_number = ?,
                     completed_at = NOW(),
                     updated_at = NOW()
-                WHERE id = ?`,
+                WHERE id = ? AND status = 'pending'`,
                 [mpesaReceiptNumber, phoneNumber, payment.id]
             );
 
+            if (result.affectedRows === 0) {
+                // Already completed by an earlier delivery of this callback.
+                // Acknowledge it: Safaricom retries anything it does not get a
+                // success for, and repeating the work below would pay the
+                // fisherman a second time.
+                logger.warn('Duplicate callback ignored for payment:', payment.id);
+                return res.status(200).json({ message: 'Callback already processed' });
+            }
+
             // Refresh payment statistics after successful payment
-            refreshPaymentStatistics().catch(err => 
+            refreshPaymentStatistics().catch(err =>
                 logger.error('Failed to refresh payment statistics:', err)
             );
 
